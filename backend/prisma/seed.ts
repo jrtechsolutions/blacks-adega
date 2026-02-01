@@ -22,7 +22,7 @@ await prisma.$executeRawUnsafe(`
 `);
 console.log('Tabelas apagadas com sucesso!');
 
-  });*/
+  });
 
   // Criar usuário admin
   const adminEmail = 'pauloesjr2@gmail.com';
@@ -91,7 +91,7 @@ console.log('Tabelas apagadas com sucesso!');
   }
   console.log('✅ Categorias verificadas/criadas com sucesso!');
 
-
+*/
 }
 
 main()

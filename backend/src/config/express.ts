@@ -34,16 +34,44 @@ export const initializeExpress = (app: Express) => {
     });
   }
 
-  app.use(cors({
-    origin: allowedOrigins,
+  // Log das origens permitidas (sempre, para debug)
+  console.log('🌐 CORS - Origens permitidas:', allowedOrigins);
+  console.log('🌐 CORS - FRONTEND_URL configurada:', env.frontendUrl);
+
+  const corsOptions = {
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      // Permite requisições sem origin (ex: Postman, mobile apps)
+      if (!origin) {
+        console.log('🌐 CORS - Requisição sem origin, permitindo');
+        return callback(null, true);
+      }
+
+      // Log da origin recebida
+      console.log('🌐 CORS - Origin recebida:', origin);
+
+      // Verifica se a origin está na lista de permitidas
+      if (allowedOrigins.includes(origin)) {
+        console.log('✅ CORS - Origin permitida:', origin);
+        return callback(null, true);
+      }
+
+      // Log de origem bloqueada
+      console.warn('⚠️ CORS - Origem bloqueada:', origin);
+      console.warn('📋 Origens permitidas:', allowedOrigins);
+
+      callback(new Error('Not allowed by CORS'));
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     credentials: true,
-    optionsSuccessStatus: 200 // Para compatibilidade com alguns navegadores
-  }));
+    optionsSuccessStatus: 200, // Para compatibilidade com alguns navegadores
+    preflightContinue: false,
+  };
+
+  app.use(cors(corsOptions));
 
   // Tratamento específico para requisições OPTIONS (preflight)
-  app.options('*', cors());
+  app.options('*', cors(corsOptions));
 
   // Helmet
   app.use(helmet({
