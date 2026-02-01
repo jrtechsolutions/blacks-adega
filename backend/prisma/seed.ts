@@ -10,7 +10,7 @@ async function main() {
     SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`;
   console.log('Tabelas existentes no banco:', tables.map(t => t.table_name));
 
-  // Apagar todas as tabelas do banco (exceto _prisma_migrations)
+/*  // Apagar todas as tabelas do banco (exceto _prisma_migrations)
 await prisma.$executeRawUnsafe(`
   DO $$ DECLARE
     r RECORD;
@@ -24,7 +24,7 @@ console.log('Tabelas apagadas com sucesso!');
 
   // Adicionar usuário admin
 
-  });
+  });*/
 
   // Adicionar categorias
   const categorias = [
