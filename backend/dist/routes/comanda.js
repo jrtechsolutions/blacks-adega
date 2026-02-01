@@ -8,7 +8,6 @@ const auth_1 = require("../middlewares/auth");
 const comanda_1 = require("../controllers/comanda");
 const router = express_1.default.Router();
 router.use(auth_1.authMiddleware);
-router.use(auth_1.adminMiddleware);
 router.get('/comandas', comanda_1.comandaController.list);
 router.post('/comandas', comanda_1.comandaController.create);
 router.get('/comandas/:id', comanda_1.comandaController.getById);

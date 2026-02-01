@@ -33,17 +33,17 @@ const storage = multer_1.default.diskStorage({
 });
 const upload = (0, multer_1.default)({ storage });
 router.post('/login', admin_1.adminController.login);
-router.use(auth_1.authMiddleware, auth_1.adminMiddleware);
-router.use((0, role_1.authorizeRoles)('ADMIN'));
-router.get('/dashboard', admin_1.adminController.dashboard);
-router.post('/users', admin_1.adminController.createUser);
-router.get('/users', admin_1.adminController.getUsers);
-router.put('/users/:id', admin_1.adminController.updateUser);
-router.delete('/users/:id', admin_1.adminController.deleteUser);
-router.get('/orders', order_1.orderController.adminList);
-router.patch('/orders/:id/status', order_1.orderController.updateStatus);
-router.patch('/orders/:id/location', order_1.orderController.updateLocation);
-router.patch('/orders/:id/pix-status', order_1.orderController.updatePixStatus);
+router.use(auth_1.authMiddleware);
+router.use((0, role_1.authorizeRoles)('ADMIN', 'VENDEDOR'));
+router.get('/dashboard', (0, role_1.authorizeRoles)('ADMIN'), admin_1.adminController.dashboard);
+router.post('/users', (0, role_1.authorizeRoles)('ADMIN'), admin_1.adminController.createUser);
+router.get('/users', (0, role_1.authorizeRoles)('ADMIN'), admin_1.adminController.getUsers);
+router.put('/users/:id', (0, role_1.authorizeRoles)('ADMIN'), admin_1.adminController.updateUser);
+router.delete('/users/:id', (0, role_1.authorizeRoles)('ADMIN'), admin_1.adminController.deleteUser);
+router.get('/orders', (0, role_1.authorizeRoles)('ADMIN'), order_1.orderController.adminList);
+router.patch('/orders/:id/status', (0, role_1.authorizeRoles)('ADMIN'), order_1.orderController.updateStatus);
+router.patch('/orders/:id/location', (0, role_1.authorizeRoles)('ADMIN'), order_1.orderController.updateLocation);
+router.patch('/orders/:id/pix-status', (0, role_1.authorizeRoles)('ADMIN'), order_1.orderController.updatePixStatus);
 router.get('/products', product_1.productController.list);
 router.get('/products/categories', product_1.productController.listCategories);
 router.post('/products', product_1.productController.create);
@@ -59,10 +59,10 @@ router.patch('/combos/:id/active', combo_1.comboController.updateActive);
 router.get('/products/promos-combos', product_1.productController.listPromosCombos);
 router.patch('/products/:id/promos-combos', product_1.productController.updatePromosCombos);
 router.get('/promotions', promotion_1.promotionController.list);
-router.post('/promotions', upload.single('image'), promotion_1.promotionController.create);
-router.put('/promotions/:id', upload.single('image'), promotion_1.promotionController.update);
-router.delete('/promotions/:id', promotion_1.promotionController.delete);
-router.patch('/promotions/:id/active', async (req, res) => {
+router.post('/promotions', (0, role_1.authorizeRoles)('ADMIN'), upload.single('image'), promotion_1.promotionController.create);
+router.put('/promotions/:id', (0, role_1.authorizeRoles)('ADMIN'), upload.single('image'), promotion_1.promotionController.update);
+router.delete('/promotions/:id', (0, role_1.authorizeRoles)('ADMIN'), promotion_1.promotionController.delete);
+router.patch('/promotions/:id/active', (0, role_1.authorizeRoles)('ADMIN'), async (req, res) => {
     const { id } = req.params;
     const { active } = req.body;
     try {
@@ -83,26 +83,26 @@ router.put('/categories/:id', category_1.categoryController.update);
 router.delete('/categories/:id', category_1.categoryController.delete);
 router.patch('/categories/:id/active', category_1.categoryController.updateActive);
 router.get('/suppliers', supplier_1.supplierController.list);
-router.post('/suppliers', supplier_1.supplierController.create);
+router.post('/suppliers', (0, role_1.authorizeRoles)('ADMIN'), supplier_1.supplierController.create);
 router.get('/suppliers/:id', supplier_1.supplierController.get);
-router.put('/suppliers/:id', supplier_1.supplierController.update);
-router.delete('/suppliers/:id', supplier_1.supplierController.delete);
+router.put('/suppliers/:id', (0, role_1.authorizeRoles)('ADMIN'), supplier_1.supplierController.update);
+router.delete('/suppliers/:id', (0, role_1.authorizeRoles)('ADMIN'), supplier_1.supplierController.delete);
 router.get('/payment-methods', paymentMethod_1.paymentMethodController.list);
-router.post('/payment-methods', paymentMethod_1.paymentMethodController.create);
+router.post('/payment-methods', (0, role_1.authorizeRoles)('ADMIN'), paymentMethod_1.paymentMethodController.create);
 router.get('/payment-methods/:id', paymentMethod_1.paymentMethodController.get);
-router.put('/payment-methods/:id', paymentMethod_1.paymentMethodController.update);
-router.delete('/payment-methods/:id', paymentMethod_1.paymentMethodController.delete);
+router.put('/payment-methods/:id', (0, role_1.authorizeRoles)('ADMIN'), paymentMethod_1.paymentMethodController.update);
+router.delete('/payment-methods/:id', (0, role_1.authorizeRoles)('ADMIN'), paymentMethod_1.paymentMethodController.delete);
 router.post('/pdv-sales', admin_1.adminController.createPDVSale);
 router.get('/pdv-sales', admin_1.adminController.getPDVSales);
 router.patch('/pdv-sales/:id/payment-method', admin_1.adminController.updatePDVSale);
 router.patch('/pdv-sales/:id/cancel', admin_1.adminController.cancelSale);
 router.put('/pdv-sales/:id', admin_1.adminController.editSale);
-router.get('/finance/report', finance_1.financeController.report);
+router.get('/finance/report', (0, role_1.authorizeRoles)('ADMIN'), finance_1.financeController.report);
 router.post('/stock-entries', stockEntry_1.stockEntryController.create);
 router.get('/stock-entries', stockEntry_1.stockEntryController.list);
 router.post('/stock-out', stockEntry_1.stockEntryController.stockOut);
 router.get('/stock-movements', stockEntry_1.stockEntryController.listMovements);
-router.get('/backup', async (req, res) => {
+router.get('/backup', (0, role_1.authorizeRoles)('ADMIN'), async (req, res) => {
     try {
         const users = await prisma_1.default.user.findMany();
         const categories = await prisma_1.default.category.findMany();
@@ -730,7 +730,7 @@ router.get('/backup', async (req, res) => {
         res.status(500).json({ error: 'Erro ao gerar backup do banco de dados' });
     }
 });
-router.get('/schema', async (req, res) => {
+router.get('/schema', (0, role_1.authorizeRoles)('ADMIN'), async (req, res) => {
     try {
         let schemaContent = `-- Schema completo do banco de dados - ${new Date().toISOString()}\n`;
         schemaContent += `-- Gerado automaticamente para migração Supabase\n`;
@@ -982,10 +982,10 @@ router.get('/schema', async (req, res) => {
 });
 router.get('/offers', offer_1.offerController.getAll);
 router.get('/offers/:id', offer_1.offerController.getById);
-router.post('/offers', upload.single('image'), offer_1.offerController.create);
-router.put('/offers/:id', upload.single('image'), offer_1.offerController.update);
-router.delete('/offers/:id', offer_1.offerController.remove);
-router.patch('/offers/:id/active', offer_1.offerController.toggleActive);
+router.post('/offers', (0, role_1.authorizeRoles)('ADMIN'), upload.single('image'), offer_1.offerController.create);
+router.put('/offers/:id', (0, role_1.authorizeRoles)('ADMIN'), upload.single('image'), offer_1.offerController.update);
+router.delete('/offers/:id', (0, role_1.authorizeRoles)('ADMIN'), offer_1.offerController.remove);
+router.patch('/offers/:id/active', (0, role_1.authorizeRoles)('ADMIN'), offer_1.offerController.toggleActive);
 router.get('/estoque-totals', admin_1.adminController.getEstoqueTotals);
 router.get('/vendas-hoje', admin_1.adminController.getVendasHoje);
 router.post('/pdv/open', admin_1.adminController.openPDVSession);

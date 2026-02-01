@@ -56,8 +56,8 @@ const authMiddleware = async (req, res, next) => {
 };
 exports.authMiddleware = authMiddleware;
 const adminMiddleware = (req, res, next) => {
-    var _a;
-    if (((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) !== 'ADMIN') {
+    var _a, _b;
+    if (((_a = req.user) === null || _a === void 0 ? void 0 : _a.role) !== 'ADMIN' && ((_b = req.user) === null || _b === void 0 ? void 0 : _b.role) !== 'VENDEDOR') {
         return res.status(403).json({ error: 'Acesso negado' });
     }
     return next();
