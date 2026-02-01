@@ -7,6 +7,8 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "removeComments": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "typeRoots": [
       "./node_modules/@types",
       "./src/@types"
@@ -22,5 +24,9 @@
   },
   "include": [
     "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
   ]
 } 
