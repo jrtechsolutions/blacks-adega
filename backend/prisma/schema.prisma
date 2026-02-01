@@ -1,0 +1,525 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  cpf       String     @unique
+  password  String
+  name      String
+  phone     String?
+  role      Role       @default(USER)
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  addresses Address[]
+  cart      Cart?
+  cashFlows CashFlow[]
+  orders    Order[]
+  sales     Sale[]
+  notifications Notification[]
+  comandas  Comanda[]
+  pdvSessions PDVSession[]
+  pdvSessionsClosed PDVSession[] @relation("PDVSessionClosedBy")
+}
+
+model Product {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  costPrice   Float
+  margin      Float?      // Margem de lucro em porcentagem
+  stock       Int         @default(0)
+  minStock    Int         @default(0)
+  barcode     String?     @unique
+  sku         String?     @unique
+  active      Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  categoryId  String
+  supplierId  String?
+  image       String?
+  isCombo     Boolean     @default(false)
+  isPromotion Boolean     @default(false)
+  pinned      Boolean     @default(false)
+  isFractioned Boolean    @default(false)
+  totalVolume Float?      // Volume total em ml para produtos fracionados
+  unitVolume  Float?      // Volume da unidade em ml para produtos fracionados
+  stockStatus StockStatus @default(IN_STOCK) // Novo campo para status do estoque
+  cartItems   CartItem[]
+  comboItems  ComboItem[]
+  kitItems    KitItem[]
+  orderItems  OrderItem[]
+  category    Category    @relation(fields: [categoryId], references: [id])
+  supplier    Supplier?   @relation(fields: [supplierId], references: [id])
+  saleItems   SaleItem[]
+  promotions  Promotion[] @relation("ProductToPromotion")
+  offerItems  OfferItem[]
+  doseItems   DoseItem[]
+  stockEntries StockEntry[]
+  stockMovements StockMovement[]
+  comandaItems ComandaItem[]
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  description String?
+  products    Product[]
+  combos      Combo[]
+  doses       Dose[]
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?  @unique
+  phone     String?
+  document  String?  @unique
+  address   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sales     Sale[]
+}
+
+model Supplier {
+  id        String    @id @default(uuid())
+  name      String
+  email     String?   @unique
+  phone     String?
+  document  String?   @unique
+  address   String?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  category  String?
+  contact   String?
+  products  Product[]
+  stockEntries StockEntry[]
+}
+
+model Sale {
+  id              String         @id @default(uuid())
+  status          SaleStatus     @default(PENDING)
+  total           Float
+  discount        Float          @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  userId          String
+  clientId        String?
+  paymentMethodId String?
+  pdvSessionId    String? // <- Adicionado para associar à sessão do PDV
+  client          Client?        @relation(fields: [clientId], references: [id])
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  user            User           @relation(fields: [userId], references: [id])
+  items           SaleItem[]
+  pdvSession      PDVSession?    @relation(fields: [pdvSessionId], references: [id])
+}
+
+model SaleItem {
+  id        String   @id @default(uuid())
+  quantity  Int
+  price     Float
+  costPrice Float    // Custo do produto no momento da venda
+  discount  Float    @default(0)
+  createdAt DateTime @default(now())
+  saleId    String
+  productId String
+  isDoseItem Boolean @default(false)
+  isFractioned Boolean @default(false)
+  discountBy String? // 'volume' ou 'unit'
+  choosableSelections Json?
+  comboInstanceId String?
+  doseInstanceId String?
+  offerInstanceId String?
+  doseId    String?
+  product   Product  @relation(fields: [productId], references: [id])
+  sale      Sale     @relation(fields: [saleId], references: [id])
+  dose      Dose?    @relation(fields: [doseId], references: [id])
+  offer     Offer?   @relation(fields: [offerInstanceId], references: [id])
+}
+
+model Kit {
+  id        String    @id @default(uuid())
+  name      String
+  price     Float
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  items     KitItem[]
+}
+
+model KitItem {
+  id        String   @id @default(uuid())
+  quantity  Int
+  createdAt DateTime @default(now())
+  kitId     String
+  productId String
+  kit       Kit      @relation(fields: [kitId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+model CashFlow {
+  id          String       @id @default(uuid())
+  type        CashFlowType
+  amount      Float
+  description String
+  createdAt   DateTime     @default(now())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+}
+
+model Address {
+  id           String   @id @default(uuid())
+  userId       String
+  title        String
+  street       String
+  number       String
+  complement   String?
+  neighborhood String
+  city         String
+  state        String
+  zipcode      String
+  isDefault    Boolean  @default(false)
+  lat          Float?
+  lng          Float?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id])
+  orders       Order[]
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  userId    String     @unique
+  updatedAt DateTime   @updatedAt
+  user      User       @relation(fields: [userId], references: [id])
+  items     CartItem[]
+}
+
+model CartItem {
+  id        String   @id @default(uuid())
+  cartId    String
+  productId String
+  quantity  Int      @default(1)
+  price     Float?
+  comboId   String?
+  comboInstanceId String?
+  doseId    String?  // Novo campo para referenciar doses
+  doseInstanceId String? // Novo campo para identificar instância única da dose
+  offerInstanceId String? // Campo para identificar instância única da oferta
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  cart      Cart     @relation(fields: [cartId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  dose      Dose?    @relation(fields: [doseId], references: [id])
+  combo     Combo?   @relation(fields: [comboId], references: [id])
+  offer     Offer?   @relation(fields: [offerInstanceId], references: [id])
+  
+  @@map("cart_items")
+}
+
+model Order {
+  id              String         @id @default(uuid())
+  userId          String
+  addressId       String
+  status          OrderStatus    @default(PENDING)
+  total           Float
+  instructions    String?
+  deliveryLat     Float?
+  deliveryLng     Float?
+  deliveryFee     Float          @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  paymentMethodId String?
+  pixPaymentStatus PixPaymentStatus? @default(PENDING)
+  address         Address        @relation(fields: [addressId], references: [id])
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  user            User           @relation(fields: [userId], references: [id])
+  items           OrderItem[]
+  notifications   Notification[]
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  orderId   String
+  productId String
+  quantity  Int     @default(1)
+  price     Float
+  costPrice Float   // Custo do produto no momento da venda
+  comboInstanceId String?
+  doseInstanceId String?
+  offerInstanceId String?
+  doseId    String?
+  choosableSelections Json?
+  order     Order   @relation(fields: [orderId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
+  dose      Dose?   @relation(fields: [doseId], references: [id])
+  offer     Offer?  @relation(fields: [offerInstanceId], references: [id])
+}
+
+model Combo {
+  id          String      @id @default(uuid())
+  name        String
+  description String
+  price       Float
+  image       String?
+  active      Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  items       ComboItem[]
+  categoryId  String?
+  category    Category?   @relation(fields: [categoryId], references: [id])
+  cartItems   CartItem[]
+}
+
+model ComboItem {
+  id                   String  @id @default(uuid())
+  comboId              String
+  productId            String
+  quantity             Int     @default(1)
+  allowFlavorSelection Boolean @default(false)
+  maxFlavors           Int     @default(1)
+  categoryId           String?
+  nameFilter           String? // Filtro de nome para produtos escolhíveis
+  combo                Combo   @relation(fields: [comboId], references: [id])
+  product              Product @relation(fields: [productId], references: [id])
+}
+
+model Promotion {
+  id            String    @id @default(uuid())
+  name          String
+  description   String
+  price         Float
+  originalPrice Float
+  image         String?
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  products      Product[] @relation("ProductToPromotion")
+}
+
+model Offer {
+  id          String      @id @default(uuid())
+  name        String
+  description String
+  price       Float       // Preço total da oferta
+  image       String?
+  active      Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  items       OfferItem[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  saleItems   SaleItem[]
+  comandaItems ComandaItem[]
+}
+
+model OfferItem {
+  id        String   @id @default(uuid())
+  offerId   String
+  productId String
+  quantity  Int      // Quantidade do produto na oferta
+  offer     Offer    @relation(fields: [offerId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+model PaymentMethod {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+  sales     Sale[]
+}
+
+model AccountPayable {
+  id           String         @id @default(uuid())
+  description  String
+  value        Float
+  dueDate      DateTime
+  status       AccountStatus  @default(PENDING)
+  type         String
+  observations String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  orderId   String?
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  order     Order?   @relation(fields: [orderId], references: [id])
+}
+
+model Dose {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  image       String?
+  active      Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  items       DoseItem[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+  saleItems   SaleItem[]
+  categoryId  String?
+  category    Category?   @relation(fields: [categoryId], references: [id])
+}
+
+model DoseItem {
+  id        String   @id @default(uuid())
+  doseId    String
+  productId String
+  quantity  Float    // Quantidade em ml ou unidades
+  allowFlavorSelection Boolean @default(false)
+  categoryId String?
+  discountBy String   // 'unit' ou 'volume'
+  nameFilter String?  // Filtro de nome para produtos escolhíveis em doses
+  volumeToDiscount Float?  // Volume a ser descontado para produtos fracionados escolhíveis
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  dose      Dose     @relation(fields: [doseId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+model StockEntry {
+  id           String   @id @default(uuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id])
+  quantity     Int
+  unitCost     Float
+  totalCost    Float
+  supplierId   String?  // opcional
+  supplier     Supplier? @relation(fields: [supplierId], references: [id]) // opcional
+  createdAt    DateTime @default(now())
+  notes        String?
+}
+
+model StockMovement {
+  id          String   @id @default(uuid())
+  createdAt   DateTime @default(now())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  type        String   // 'in' para entrada, 'out' para saída
+  quantity    Int
+  unitCost    Float
+  totalCost   Float
+  notes       String?
+  origin      String?  // 'manual', 'venda_online', 'venda_pdv', etc
+}
+
+model Comanda {
+  id           String        @id @default(uuid())
+  number       Int           @unique
+  customerName String
+  tableNumber  String?       // Número da mesa (opcional)
+  isOpen       Boolean       @default(true)
+  total        Float         @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  items        ComandaItem[]
+  createdBy    String        // ID do admin que criou
+  user         User          @relation(fields: [createdBy], references: [id])
+}
+
+model ComandaItem {
+  id        String   @id @default(uuid())
+  comandaId String
+  productId String
+  code      String
+  name      String
+  quantity  Int
+  price     Float
+  total     Float
+  isDoseItem Boolean @default(false)
+  isFractioned Boolean @default(false)
+  discountBy String? // 'volume' ou 'unit'
+  choosableSelections Json?
+  offerInstanceId String?
+  comboInstanceId String? // Novo campo para agrupar itens de combo
+  createdAt DateTime @default(now())
+  comanda   Comanda @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+  offer     Offer?  @relation(fields: [offerInstanceId], references: [id])
+}
+
+model PDVSession {
+  id          String    @id @default(uuid())
+  openedAt    DateTime  @default(now())
+  closedAt    DateTime?
+  openedBy    String    // ID do admin que abriu
+  closedBy    String?   // ID do admin que fechou
+  initialCash Float     @default(0) // Caixa inicial
+  finalCash   Float?    // Caixa final
+  totalSales  Float     @default(0) // Total de vendas da sessão
+  isActive    Boolean   @default(true)
+  notes       String?   // Observações da sessão
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [openedBy], references: [id])
+  closedByUser User?    @relation("PDVSessionClosedBy", fields: [closedBy], references: [id])
+  sales       Sale[]    // <- Relação inversa
+}
+
+enum Role {
+  ADMIN
+  USER
+  MOTOBOY
+  VENDEDOR
+}
+
+enum SaleStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum CashFlowType {
+  INCOME
+  EXPENSE
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  DELIVERING
+  DELIVERED
+  CANCELLED
+}
+
+enum AccountStatus {
+  PENDING
+  PAID
+}
+
+enum PixPaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum StockStatus {
+  OUT_OF_STOCK    // ESGOTADO - estoque = 0 ou volume = 0
+  LOW_STOCK       // ESTOQUE BAIXO - estoque <= 5
+  IN_STOCK        // EM ESTOQUE - estoque > 5
+}

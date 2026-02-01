@@ -1,0 +1,216 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Nova paleta de cores - Black's Adega */
+    /* Fundo principal: Preto profundo #0B0B0B */
+    --background: 0 0% 4.3%;
+    --foreground: 0 0% 100%;
+
+    /* Muted: Cinza claro para textos secundários */
+    --muted: 0 0% 12.5%;
+    --muted-foreground: 0 0% 81.2%;
+
+    /* Popover: Cards mais claros */
+    --popover: 0 0% 12.2%;
+    --popover-foreground: 0 0% 100%;
+
+    /* Card: Cinza carvão #1F1F1F */
+    --card: 0 0% 12.2%;
+    --card-foreground: 0 0% 100%;
+
+    /* Border: Borda sutil #2E2E2E */
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+
+    /* Primary: Dourado #D4AF37 */
+    --primary: 45 75% 52%;
+    --primary-foreground: 0 0% 4.3%;
+
+    /* Secondary: Cinza carvão */
+    --secondary: 0 0% 12.2%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Accent: Dourado hover #E6C76A */
+    --accent: 45 60% 65%;
+    --accent-foreground: 0 0% 4.3%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 0 0% 100%;
+
+    --ring: 45 75% 52%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar: Preto grafite #141414 */
+    --sidebar-background: 0 0% 7.8%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 45 75% 52%;
+    --sidebar-primary-foreground: 0 0% 4.3%;
+    --sidebar-accent: 45 60% 65%;
+    --sidebar-accent-foreground: 0 0% 4.3%;
+    --sidebar-border: 0 0% 18%;
+    --sidebar-ring: 45 75% 52%;
+  }
+
+  .dark {
+    /* Mesmas cores para dark mode */
+    --background: 0 0% 4.3%;
+    --foreground: 0 0% 100%;
+
+    --muted: 0 0% 12.5%;
+    --muted-foreground: 0 0% 81.2%;
+
+    --popover: 0 0% 12.2%;
+    --popover-foreground: 0 0% 100%;
+
+    --card: 0 0% 12.2%;
+    --card-foreground: 0 0% 100%;
+
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+
+    --primary: 45 75% 52%;
+    --primary-foreground: 0 0% 4.3%;
+
+    --secondary: 0 0% 12.2%;
+    --secondary-foreground: 0 0% 100%;
+
+    --accent: 45 60% 65%;
+    --accent-foreground: 0 0% 4.3%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 0 0% 100%;
+
+    --ring: 45 75% 52%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 7.8%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 45 75% 52%;
+    --sidebar-primary-foreground: 0 0% 4.3%;
+    --sidebar-accent: 45 60% 65%;
+    --sidebar-accent-foreground: 0 0% 4.3%;
+    --sidebar-border: 0 0% 18%;
+    --sidebar-ring: 45 75% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-[#0B0B0B] text-[#FFFFFF];
+  }
+}
+
+/* Black's Adega Custom Styles */
+@layer components {
+  .element-container {
+    @apply container max-w-7xl mx-auto px-4 sm:px-6;
+  }
+  
+  .element-section {
+    @apply py-12 md:py-16;
+  }
+  
+  .element-heading {
+    @apply text-2xl md:text-3xl font-bold text-[#D4AF37];
+  }
+  
+  .element-subheading {
+    @apply text-xl font-bold text-[#D4AF37];
+  }
+  
+  .element-card {
+    @apply bg-[#1F1F1F] rounded-lg shadow-sm border border-[#2E2E2E];
+  }
+  
+  .element-card-hover {
+    @apply transition-all duration-200 hover:shadow-md hover:border-[#D4AF37];
+  }
+  
+  .element-link {
+    @apply text-[#CFCFCF] hover:text-[#D4AF37] transition-colors;
+  }
+  
+  .element-btn-primary {
+    @apply bg-[#D4AF37] text-[#0B0B0B] px-4 py-2 rounded-md hover:bg-[#E6C76A] transition-colors font-medium;
+  }
+  
+  .element-btn-secondary {
+    @apply bg-[#1F1F1F] text-[#D4AF37] border border-[#2E2E2E] px-4 py-2 rounded-md hover:bg-[#2E2E2E] hover:border-[#D4AF37] transition-colors;
+  }
+  
+  .element-input {
+    @apply bg-[#1F1F1F] border border-[#2E2E2E] text-[#FFFFFF] rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent;
+  }
+}
+
+@layer utilities {
+  .animate-pulse-soft {
+    animation: pulse-soft 2s infinite ease-in-out;
+  }
+
+  @keyframes pulse-soft {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-in-out;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-slide-in {
+    animation: slide-in 0.4s ease-out;
+  }
+
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-bounce-soft {
+    animation: bounce-soft 0.6s ease-in-out;
+  }
+
+  @keyframes bounce-soft {
+    0%, 20%, 53%, 80%, 100% {
+      transform: translate3d(0, 0, 0);
+    }
+    40%, 43% {
+      transform: translate3d(0, -8px, 0);
+    }
+    70% {
+      transform: translate3d(0, -4px, 0);
+    }
+    90% {
+      transform: translate3d(0, -2px, 0);
+    }
+  }
+}
