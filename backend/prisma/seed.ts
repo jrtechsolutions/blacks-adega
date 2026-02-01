@@ -22,9 +22,38 @@ await prisma.$executeRawUnsafe(`
 `);
 console.log('Tabelas apagadas com sucesso!');
 
-  // Adicionar usuário admin
-
   });*/
+
+  // Criar usuário admin
+  const adminEmail = 'pauloesjr2@gmail.com';
+  const adminPassword = 'Paulo1308**';
+
+  // Verificar se já existe um admin
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: adminEmail },
+  });
+
+  if (!existingAdmin) {
+    // Hash da senha
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+    
+    // Criar admin
+    const admin = await prisma.user.create({
+      data: {
+        name: 'Administrador',
+        email: adminEmail,
+        password: hashedPassword,
+        role: Role.ADMIN,
+        cpf: '00000000000', // CPF padrão para admin
+        active: true,
+      },
+    });
+
+    console.log('✅ Admin criado com sucesso!');
+    console.log('📧 Email:', adminEmail);
+  } else {
+    console.log('ℹ️ Admin já existe, pulando criação...');
+  }
 
   // Adicionar categorias
   const categorias = [
@@ -48,12 +77,19 @@ console.log('Tabelas apagadas com sucesso!');
     'Destilados'
     
   ];
+  // Verificar e criar categorias (evitar duplicatas)
   for (const name of categorias) {
-    await prisma.category.create({
-      data: { name, active: true },
+    const existingCategory = await prisma.category.findFirst({
+      where: { name },
     });
+
+    if (!existingCategory) {
+      await prisma.category.create({
+        data: { name, active: true },
+      });
+    }
   }
-  console.log('Categorias adicionadas com sucesso!'+ prisma.category.findMany());
+  console.log('✅ Categorias verificadas/criadas com sucesso!');
 
 
 }
