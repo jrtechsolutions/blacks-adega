@@ -14,7 +14,6 @@ import { useAuth } from '@/hooks/useAuth';
 
 const userTypes = [
   { value: 'ADMIN', label: 'Administrador' },
-  { value: 'MOTOBOY', label: 'Motoboy' },
   { value: 'VENDEDOR', label: 'Vendedor' },
 ];
 
@@ -39,7 +38,7 @@ const AdminUsers = () => {
       return;
     }
     setLoading(true);
-    axios.get(`${API_URL}/admin/users?roles=ADMIN,MOTOBOY,VENDEDOR`, {
+    axios.get(`${API_URL}/admin/users?roles=ADMIN,VENDEDOR`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -154,20 +153,38 @@ const AdminUsers = () => {
     setLoading(true);
     setError('');
     try {
-      await axios.delete(`${API_URL}/admin/users/${deleteUser.id}`, {
+      const response = await axios.delete(`${API_URL}/admin/users/${deleteUser.id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      // Atualizar lista de usuários
       const res = await axios.get(`${API_URL}/admin/users?roles=ADMIN,MOTOBOY,VENDEDOR`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUsers(res.data);
-      setIsDeleteOpen(false);
-      setDeleteUser(null);
-    } catch (err) {
+      
+      // Se foi desativado ao invés de excluído, mostrar mensagem
+      if (response.data?.deactivated) {
+        setError(response.data.message || 'Usuário foi desativado ao invés de excluído');
+        // Fechar o modal após 2 segundos para o usuário ver a mensagem
+        setTimeout(() => {
+          setIsDeleteOpen(false);
+          setDeleteUser(null);
+          setError('');
+        }, 2000);
+      } else {
+        // Exclusão bem-sucedida
+        setIsDeleteOpen(false);
+        setDeleteUser(null);
+      }
+    } catch (err: any) {
       console.error('Erro ao excluir usuário:', err);
-      setError('Erro ao excluir usuário');
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Erro ao excluir usuário';
+      setError(errorMessage);
+      // Não fecha o modal se houver erro, para o usuário ver a mensagem
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -225,7 +242,7 @@ const AdminUsers = () => {
                       <TableCell className="font-medium">#{user.id}</TableCell>
                       <TableCell>{user.name}</TableCell>
                       <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.role === 'ADMIN' ? 'Administrador' : user.role === 'VENDEDOR' ? 'Vendedor' : 'Motoboy'}</TableCell>
+                      <TableCell>{user.role === 'ADMIN' ? 'Administrador' : user.role === 'VENDEDOR' ? 'Vendedor' : user.role}</TableCell>
                       <TableCell className="text-right space-x-2">
                         <Button size="sm" variant="outline" onClick={() => openEdit(user)}>
                           <Pencil className="h-4 w-4" />
@@ -330,10 +347,31 @@ const AdminUsers = () => {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Excluir usuário?</AlertDialogTitle>
+              {error && (
+                <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                  <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+                </div>
+              )}
+              {deleteUser && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Tem certeza que deseja excluir o usuário <strong>{deleteUser.name}</strong> ({deleteUser.email})?
+                  {deleteUser.role === 'ADMIN' && (
+                    <span className="block mt-1 text-amber-600 dark:text-amber-400">
+                      ⚠️ Este é um administrador. Certifique-se de que não é o último admin do sistema.
+                    </span>
+                  )}
+                </p>
+              )}
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDelete}>Excluir</AlertDialogAction>
+              <AlertDialogCancel onClick={() => { setError(''); setDeleteUser(null); }}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={confirmDelete} 
+                disabled={loading}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {loading ? 'Excluindo...' : 'Excluir'}
+              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

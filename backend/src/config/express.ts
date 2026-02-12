@@ -1,4 +1,5 @@
 import express, { Express } from 'express';
+import 'express-async-errors';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -78,13 +79,17 @@ export const initializeExpress = (app: Express) => {
     crossOriginResourcePolicy: { policy: 'cross-origin' }
   }));
 
-  // Rate Limiter
-  // const limiter = rateLimit({
-  //   windowMs: 15 * 60 * 1000, // 15 minutos
-  //   max: 100, // limite de 100 requisições por IP
-  //   message: 'Muitas requisições deste IP, tente novamente mais tarde.'
-  // });
-  // app.use(limiter);
+  // Rate Limiter - Proteção contra DDoS e brute force (desabilitado em testes)
+  if (env.nodeEnv !== 'test') {
+    const apiLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutos
+      max: 100, // limite de 100 requisições por IP
+      message: 'Muitas requisições deste IP, tente novamente mais tarde.',
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
+    app.use('/api', apiLimiter);
+  }
 
   // Compression
   app.use(compression());

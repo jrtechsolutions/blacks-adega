@@ -82,6 +82,7 @@ const AdminPDV = () => {
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<{id: string, name: string}[]>([]);
   const [combos, setCombos] = useState<any[]>([]);
+  const [promotions, setPromotions] = useState<any[]>([]);
   const [offers, setOffers] = useState<any[]>([]);
   const [comboModalOpen, setComboModalOpen] = useState(false);
   const [comboToConfigure, setComboToConfigure] = useState<any>(null);
@@ -111,15 +112,16 @@ const AdminPDV = () => {
     });
   }, []);
 
-  // Buscar produtos e combos ao carregar
+  // Buscar produtos, combos, promoções, doses e ofertas ao carregar
   useEffect(() => {
     Promise.all([
       api.get('/admin/products'),
       api.get('/admin/combos'),
+      api.get('/admin/promotions'),
       api.get('/admin/doses'),
       api.get('/admin/offers'),
       api.get('/admin/products', { params: { pinned: true } })
-    ]).then(([productsRes, combosRes, dosesRes, offersRes, pinnedRes]) => {
+    ]).then(([productsRes, combosRes, promotionsRes, dosesRes, offersRes, pinnedRes]) => {
       setProducts(productsRes.data.filter((p: any) => p.stock > 0));
       setCombos(combosRes.data.map((combo: any) => ({
         ...combo,
@@ -128,6 +130,7 @@ const AdminPDV = () => {
           isChoosable: item.allowFlavorSelection
         }))
       })));
+      setPromotions((promotionsRes.data || []).filter((p: any) => p.active !== false));
       setDoses(dosesRes.data.map((dose: any) => ({
         ...dose,
         items: dose.items.map((item: any) => ({
@@ -140,7 +143,7 @@ const AdminPDV = () => {
     });
   }, []);
 
-  // Unificar produtos e combos para exibição (useMemo para evitar loop)
+  // Unificar produtos, combos, promoções, doses e ofertas para exibição e busca
   const allItems = React.useMemo(() => [
     ...products.map(p => ({ ...p, type: 'product' })),
     ...combos.map(c => ({
@@ -149,6 +152,13 @@ const AdminPDV = () => {
       code: c.id.substring(0, 6),
       name: c.name,
       price: c.price,
+    })),
+    ...promotions.map(pr => ({
+      ...pr,
+      type: 'promotion',
+      code: pr.id.substring(0, 6),
+      name: pr.name,
+      price: pr.price,
     })),
     ...doses.map(d => ({
       ...d,
@@ -164,7 +174,7 @@ const AdminPDV = () => {
       name: o.name,
       price: o.price,
     }))
-  ], [products, combos, doses, offers]);
+  ], [products, combos, promotions, doses, offers]);
 
   // Busca dinâmica
   useEffect(() => {
@@ -465,6 +475,36 @@ const AdminPDV = () => {
           description: `${item.name} adicionada ao carrinho`,
         });
       }
+    } else if (item.type === 'promotion') {
+      const promotion = promotions.find(pr => pr.id === item.id);
+      if (promotion && promotion.products && promotion.products.length > 0) {
+        const promoInstanceId = uuidv4();
+        const pricePerProduct = promotion.price / promotion.products.length;
+        const promotionItems = promotion.products.map((p: any) => ({
+          productId: p.id,
+          quantity: 1,
+          price: pricePerProduct,
+          name: p.name,
+          code: p.code || p.id?.substring(0, 6) || '',
+          promotionInstanceId: promoInstanceId,
+        }));
+        const newCartItem: CartItem = {
+          id: promoInstanceId,
+          productId: item.id,
+          code: item.code,
+          name: item.name,
+          quantity,
+          price: item.price,
+          total: item.price * quantity,
+          type: 'promotion',
+          offerItems: promotionItems, // reutilizando estrutura para desmembrar na venda
+        };
+        setCartItems(prev => [...prev, newCartItem]);
+        toast({
+          title: 'Promoção adicionada',
+          description: `${item.name} adicionada ao carrinho`,
+        });
+      }
     } else {
       // Produto normal
       const existingItem = cartItems.find(cartItem => cartItem.productId === item.id);
@@ -654,6 +694,22 @@ const AdminPDV = () => {
                 productId: offerItem.productId,
                 quantity: offerItem.quantity,
                 price: offerItem.price,
+                offerInstanceId: item.id
+              });
+            }
+          }
+        } else if (item.type === 'promotion' && item.offerItems) {
+          // Desmembrar promoção (cada produto da promo com quantidade e preço proporcional)
+          for (const promoItem of item.offerItems) {
+            const qty = (promoItem.quantity || 1) * item.quantity;
+            const existing = finalItems.find(fi => fi.productId === promoItem.productId);
+            if (existing) {
+              existing.quantity += qty;
+            } else {
+              finalItems.push({
+                productId: promoItem.productId,
+                quantity: qty,
+                price: promoItem.price,
                 offerInstanceId: item.id
               });
             }
@@ -876,7 +932,7 @@ const AdminPDV = () => {
                       disabled={product.stock === 0}
                     >
                       <div className="text-sm font-medium truncate">{product.code} - {product.name}</div>
-                      <div className="text-sm text-green-600">R$ {product.price.toFixed(2)}</div>
+                      <div className="text-sm text-green-500">R$ {product.price.toFixed(2)}</div>
                     </button>
                   ))}
                 </div>
@@ -888,24 +944,24 @@ const AdminPDV = () => {
                   <div className="grid grid-cols-1 gap-2">
                     {filteredProducts.map(product => (
                       <button
-                        key={product.id}
+                        key={`${product.type}-${product.id}`}
                         className="text-left p-3 border border-[#2E2E2E] rounded-md hover:border-[#D4AF37] transition-colors bg-[#1F1F1F] text-[#CFCFCF] w-full"
                         onClick={() => addToCart(product)}
-                        disabled={product.stock === 0}
+                        disabled={product.type === 'product' && product.stock === 0}
                       >
-                        <div className="font-medium">{product.code} - {product.name}</div>
-                        <div className="text-green-600 mt-1">R$ {product.price.toFixed(2)}</div>
+                        <div className="font-medium text-[#FFFFFF]">{product.code} - {product.name}</div>
+                        <div className="text-green-500 mt-1">R$ {product.price.toFixed(2)}</div>
                       </button>
                     ))}
                     {filteredProducts.length === 0 && (
-                      <div className="text-center py-4 text-gray-500">
+                      <div className="text-center py-4 text-[#CFCFCF]">
                         Nenhum produto encontrado para "{searchQuery}"
                       </div>
                     )}
                   </div>
                 )}
                 {searchQuery.trim() === '' && pinnedProducts.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-[#CFCFCF]">
                     Selecione produtos na opção "Produtos Rápidos" para aparecerem aqui
                   </div>
                 )}
@@ -916,9 +972,9 @@ const AdminPDV = () => {
           {/* Lado Direito: Carrinho (não tem mais overflow próprio) */}
           <div className="w-full lg:w-[450px] bg-[#1F1F1F] border border-[#2E2E2E] shadow-md flex flex-col rounded-lg lg:overflow-hidden">
             {/* Ticket header */}
-            <div className="p-4 bg-[#141414] flex justify-between items-center">
-              <div className="font-medium">Tíquete: {ticketNumber}</div>
-              <div className="text-green-600 font-medium">ABERTO</div>
+            <div className="p-4 bg-[#141414] flex justify-between items-center border-b border-[#2E2E2E]">
+              <div className="font-medium text-[#FFFFFF]">Tíquete: {ticketNumber}</div>
+              <div className="text-green-500 font-medium">ABERTO</div>
             </div>
 
             {/* Cart items */}
@@ -927,20 +983,20 @@ const AdminPDV = () => {
                 <div className="flex flex-col gap-2 p-2">
                   {cartItems.length > 0 ? (
                     cartItems.map((item, index) => (
-                      <div key={item.id} className="rounded-lg border p-3 flex flex-col gap-2 bg-gray-50">
+                      <div key={item.id} className="rounded-lg border border-[#2E2E2E] p-3 flex flex-col gap-2 bg-[#1F1F1F]">
                         <div className="flex justify-between items-center">
-                          <span className="font-semibold text-sm">{item.name}</span>
+                          <span className="font-semibold text-sm text-[#FFFFFF]">{item.name}</span>
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            className="h-6 w-6 p-0 text-red-500"
+                            className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
                             onClick={() => removeItem(item.id)}
                             aria-label="Remover item"
                           >
                             <X className="h-4 w-4" />
                           </Button>
                         </div>
-                        <div className="flex justify-between items-center text-xs text-gray-500">
+                        <div className="flex justify-between items-center text-xs text-[#CFCFCF]">
                           <span>Cód: {item.code}</span>
                           <span>Preço: R$ {item.price.toFixed(2)}</span>
                         </div>
@@ -948,28 +1004,28 @@ const AdminPDV = () => {
                           <Button 
                             variant="outline" 
                             size="icon" 
-                            className="h-6 w-6 rounded-full p-0"
+                            className="h-8 w-8 rounded-full p-0 border-[#2E2E2E] hover:bg-[#2E2E2E] hover:border-[#D4AF37] text-[#FFFFFF]"
                             onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
                             aria-label="Diminuir quantidade"
                           >
                             <Minus className="h-3 w-3" />
                           </Button>
-                          <span className="mx-2 font-medium">{item.quantity}</span>
+                          <span className="mx-2 font-medium text-[#FFFFFF] min-w-[24px] text-center">{item.quantity}</span>
                           <Button 
                             variant="outline" 
                             size="icon" 
-                            className="h-6 w-6 rounded-full p-0"
+                            className="h-8 w-8 rounded-full p-0 border-[#2E2E2E] hover:bg-[#2E2E2E] hover:border-[#D4AF37] text-[#FFFFFF]"
                             onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
                             aria-label="Aumentar quantidade"
                           >
                             <Plus className="h-3 w-3" />
                           </Button>
-                          <span className="ml-auto font-semibold text-sm">Total: R$ {item.total.toFixed(2)}</span>
+                          <span className="ml-auto font-semibold text-sm text-[#FFFFFF]">Total: R$ {item.total.toFixed(2)}</span>
                         </div>
                         {item.doseItems && (
-                          <div className="mt-2 bg-[#141414] rounded p-2">
-                            <div className="font-semibold text-xs mb-1 text-cyan-700">Composição:</div>
-                            <ul className="text-xs text-gray-700 space-y-1">
+                          <div className="mt-2 bg-[#141414] border border-[#2E2E2E] rounded p-2">
+                            <div className="font-semibold text-xs mb-1 text-[#D4AF37]">Composição:</div>
+                            <ul className="text-xs text-[#CFCFCF] space-y-1">
                               {item.doseItems.map((doseItem, idx) => (
                                 <li key={doseItem.productId + '-' + idx} className="flex justify-between">
                                   <span>{doseItem.product?.name || 'Produto'}</span>
@@ -980,9 +1036,9 @@ const AdminPDV = () => {
                               ))}
                             </ul>
                             {item.choosableSelections && Object.keys(item.choosableSelections).length > 0 && (
-                              <div className="mt-1 text-cyan-800">
-                                <div className="font-semibold">Escolhas do cliente:</div>
-                                <ul className="list-disc ml-4">
+                              <div className="mt-1 text-[#D4AF37]">
+                                <div className="font-semibold text-xs">Escolhas do cliente:</div>
+                                <ul className="list-disc ml-4 text-xs text-[#CFCFCF]">
                                   {Object.entries(item.choosableSelections).map(([cat, prods]) => (
                                     Object.entries(prods).map(([prodId, qty]) => (
                                       <li key={cat + '-' + prodId}>
@@ -998,34 +1054,34 @@ const AdminPDV = () => {
                       </div>
                     ))
                   ) : (
-                    <div className="text-center py-8 text-gray-500">Nenhum item adicionado</div>
+                    <div className="text-center py-8 text-[#CFCFCF]">Nenhum item adicionado</div>
                   )}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table className="min-w-[600px]">
                     <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12">Item</TableHead>
-                        <TableHead className="w-16">Cód.</TableHead>
-                        <TableHead>Produto</TableHead>
-                        <TableHead className="w-24 text-center">Qtd</TableHead>
-                        <TableHead className="w-20 text-right">Preço</TableHead>
-                        <TableHead className="w-20 text-right">Total</TableHead>
+                      <TableRow className="border-[#2E2E2E]">
+                        <TableHead className="w-12 text-[#FFFFFF]">Item</TableHead>
+                        <TableHead className="w-16 text-[#FFFFFF]">Cód.</TableHead>
+                        <TableHead className="text-[#FFFFFF]">Produto</TableHead>
+                        <TableHead className="w-24 text-center text-[#FFFFFF]">Qtd</TableHead>
+                        <TableHead className="w-20 text-right text-[#FFFFFF]">Preço</TableHead>
+                        <TableHead className="w-20 text-right text-[#FFFFFF]">Total</TableHead>
                         <TableHead className="w-8"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {cartItems.length > 0 ? (
                         cartItems.map((item, index) => (
-                          <TableRow key={item.id} className="hover:bg-gray-50">
-                            <TableCell>{index + 1}</TableCell>
-                            <TableCell>{item.code}</TableCell>
-                            <TableCell className="font-medium">
+                          <TableRow key={item.id} className="hover:bg-[#2E2E2E]">
+                            <TableCell className="text-[#FFFFFF]">{index + 1}</TableCell>
+                            <TableCell className="text-[#FFFFFF]">{item.code}</TableCell>
+                            <TableCell className="font-medium text-[#FFFFFF]">
                               {item.name}
                               {item.doseItems && (
-                                <div className="mt-1 text-xs text-gray-700">
-                                  <div className="font-semibold text-cyan-700">Composição:</div>
+                                <div className="mt-1 text-xs text-[#CFCFCF]">
+                                  <div className="font-semibold text-[#D4AF37]">Composição:</div>
                                   <ul className="ml-2">
                                     {item.doseItems.map((doseItem, idx) => (
                                       <li key={doseItem.productId + '-' + idx} className="flex justify-between">
@@ -1037,9 +1093,9 @@ const AdminPDV = () => {
                                     ))}
                                   </ul>
                                   {item.choosableSelections && Object.keys(item.choosableSelections).length > 0 && (
-                                    <div className="mt-1 text-cyan-800">
-                                      <div className="font-semibold">Escolhas do cliente:</div>
-                                      <ul className="list-disc ml-4">
+                                    <div className="mt-1 text-[#D4AF37]">
+                                      <div className="font-semibold text-xs">Escolhas do cliente:</div>
+                                      <ul className="list-disc ml-4 text-xs text-[#CFCFCF]">
                                         {Object.entries(item.choosableSelections).map(([cat, prods]) => (
                                           Object.entries(prods).map(([prodId, qty]) => (
                                             <li key={cat + '-' + prodId}>
@@ -1054,8 +1110,8 @@ const AdminPDV = () => {
                               )}
                               {/* Exibir composição de ofertas */}
                               {item.offerItems && (
-                                <div className="mt-1 text-xs text-gray-700">
-                                  <div className="font-semibold text-cyan-700">Composição:</div>
+                                <div className="mt-1 text-xs text-[#CFCFCF]">
+                                  <div className="font-semibold text-[#D4AF37]">Composição:</div>
                                   <ul className="ml-2">
                                     {item.offerItems.map((offerItem, idx) => (
                                       <li key={offerItem.productId + '-' + idx} className="flex justify-between">
@@ -1067,34 +1123,34 @@ const AdminPDV = () => {
                                 </div>
                               )}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="text-center">
                               <div className="flex items-center justify-center">
                                 <Button 
                                   variant="outline" 
                                   size="icon" 
-                                  className="h-6 w-6 rounded-full p-0"
+                                  className="h-7 w-7 rounded-full p-0 border-[#2E2E2E] hover:bg-[#2E2E2E] hover:border-[#D4AF37] text-[#FFFFFF]"
                                   onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
                                 >
                                   <Minus className="h-3 w-3" />
                                 </Button>
-                                <span className="mx-2">{item.quantity}</span>
+                                <span className="mx-2 text-[#FFFFFF] min-w-[24px] text-center">{item.quantity}</span>
                                 <Button 
                                   variant="outline" 
                                   size="icon" 
-                                  className="h-6 w-6 rounded-full p-0"
+                                  className="h-7 w-7 rounded-full p-0 border-[#2E2E2E] hover:bg-[#2E2E2E] hover:border-[#D4AF37] text-[#FFFFFF]"
                                   onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
                                 >
                                   <Plus className="h-3 w-3" />
                                 </Button>
                               </div>
                             </TableCell>
-                            <TableCell className="text-right">R$ {item.price.toFixed(2)}</TableCell>
-                            <TableCell className="text-right">R$ {item.total.toFixed(2)}</TableCell>
+                            <TableCell className="text-right text-[#FFFFFF]">R$ {item.price.toFixed(2)}</TableCell>
+                            <TableCell className="text-right text-[#FFFFFF] font-medium">R$ {item.total.toFixed(2)}</TableCell>
                             <TableCell>
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
-                                className="h-6 w-6 p-0 text-red-500"
+                                className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
                                 onClick={() => removeItem(item.id)}
                               >
                                 <X className="h-4 w-4" />
@@ -1104,7 +1160,7 @@ const AdminPDV = () => {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                          <TableCell colSpan={7} className="text-center py-8 text-[#CFCFCF]">
                             Nenhum item adicionado
                           </TableCell>
                         </TableRow>
@@ -1116,18 +1172,18 @@ const AdminPDV = () => {
             </div>
 
             {/* Totals */}
-            <div className="p-4 border-t">
+            <div className="p-4 border-t border-[#2E2E2E]">
               <div className="flex justify-between mb-1">
-                <div>Valor:</div>
-                <div className="font-medium text-green-600">R$ {subtotal.toFixed(2)}</div>
+                <div className="text-[#CFCFCF]">Valor:</div>
+                <div className="font-medium text-green-500">R$ {subtotal.toFixed(2)}</div>
               </div>
               <div className="flex justify-between mb-1">
-                <div>Desconto:</div>
-                <div className="font-medium text-red-600">R$ {discount.toFixed(2)}</div>
+                <div className="text-[#CFCFCF]">Desconto:</div>
+                <div className="font-medium text-red-500">R$ {discount.toFixed(2)}</div>
               </div>
               <div className="flex justify-between">
-                <div>Total:</div>
-                <div className="font-medium text-element-black text-lg">R$ {total.toFixed(2)}</div>
+                <div className="text-[#FFFFFF] font-medium">Total:</div>
+                <div className="font-bold text-[#D4AF37] text-lg">R$ {total.toFixed(2)}</div>
               </div>
             </div>
           </div>
@@ -1243,27 +1299,35 @@ const AdminPDV = () => {
         {/* ... (conteúdo do drawer) ... */}
       </Drawer>
       <Dialog open={quickProductsOpen} onOpenChange={setQuickProductsOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col overflow-hidden bg-[#141414] border-[#2E2E2E]">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-[#FFFFFF]">
               Selecionar Produtos Rápidos
             </DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 py-4 max-h-[60vh] overflow-y-auto">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 py-4 flex-1 min-h-0 overflow-y-auto">
             {products.map((product) => (
               <div 
                 key={product.id} 
-                className={`border rounded-lg p-3 transition-colors cursor-pointer ${product.pinned ? 'border-yellow-400 bg-yellow-50' : 'hover:border-yellow-400'}`}
+                className={`border rounded-lg p-3 transition-colors cursor-pointer ${
+                  product.pinned 
+                    ? 'border-[#D4AF37] bg-[#1F1F1F]' 
+                    : 'border-[#2E2E2E] bg-[#1F1F1F] hover:border-[#D4AF37]'
+                }`}
                 onClick={() => togglePinProduct(product.id)}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <span className="text-sm font-medium">{product.name}</span>
+                  <span className={`text-sm font-medium ${product.pinned ? 'text-[#D4AF37]' : 'text-[#FFFFFF]'}`}>
+                    {product.name}
+                  </span>
                   <Checkbox 
                     checked={!!product.pinned}
                     onCheckedChange={() => togglePinProduct(product.id)}
                   />
                 </div>
-                <div className="text-sm text-gray-600">{product.price.toFixed(2)}</div>
+                <div className={`text-sm ${product.pinned ? 'text-[#D4AF37]' : 'text-[#CFCFCF]'}`}>
+                  R$ {product.price.toFixed(2)}
+                </div>
               </div>
             ))}
           </div>
@@ -1320,15 +1384,42 @@ const AdminPDV = () => {
       </Dialog>
 
       {/* Modal para Fechar PDV */}
-      <Dialog open={closeSessionModal} onOpenChange={setCloseSessionModal}>
+      <Dialog open={closeSessionModal} onOpenChange={async (open) => {
+        setCloseSessionModal(open);
+        if (open) {
+          try {
+            const res = await api.get('/admin/pdv/active');
+            const session = res.data;
+            if (session) {
+              setActiveSession(session);
+              const initial = Number(session.initialCash) || 0;
+              const sales = Number(session.totalSales) || 0;
+              setFinalCash(String((initial + sales).toFixed(2)));
+            }
+          } catch {
+            // mantém estado atual
+          }
+        } else {
+          setFinalCash('');
+          setSessionNotes('');
+        }
+      }}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Fechar Sessão do PDV</DialogTitle>
             <DialogDescription>
-              Encerre a sessão atual de vendas. O sistema calculará automaticamente o total de vendas da sessão.
+              O Caixa Final é a soma do caixa inicial com o total de vendas da sessão. Você pode ajustar o valor se houver diferença na contagem física.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {activeSession && (
+              <div className="grid grid-cols-4 items-center gap-4 text-sm text-[#CFCFCF]">
+                <span className="text-right">Caixa Inicial</span>
+                <span className="col-span-3">R$ {Number(activeSession.initialCash || 0).toFixed(2)}</span>
+                <span className="text-right">Vendas da sessão</span>
+                <span className="col-span-3">R$ {Number((activeSession as any).totalSales || 0).toFixed(2)}</span>
+              </div>
+            )}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="finalCash" className="text-right">
                 Caixa Final

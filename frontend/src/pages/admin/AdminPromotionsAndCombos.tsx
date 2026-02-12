@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Edit, Trash2, Tag, Package, Search, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit, Trash2, Tag, Package, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -21,7 +21,6 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { uploadToCloudinary } from '@/lib/cloudinary';
 
 interface Product {
   id: string;
@@ -49,7 +48,6 @@ interface Combo {
   id: string;
   name: string;
   description?: string;
-  image?: string;
   price: number;
   active: boolean;
   items: ComboItem[];
@@ -59,7 +57,6 @@ interface Promotion {
   id: string;
   name: string;
   description?: string;
-  image?: string;
   price: number;
   originalPrice: number;
   active: boolean;
@@ -71,15 +68,20 @@ interface DoseItem {
   productId: string;
   product: Product;
   quantity: number;
+  allowFlavorSelection?: boolean;
+  categoryId?: string | null;
+  discountBy?: string;
+  nameFilter?: string | null;
+  volumeToDiscount?: number | null;
 }
 
 interface Dose {
   id: string;
   name: string;
   description?: string;
-  image?: string;
   price: number;
   active: boolean;
+  categoryId?: string | null;
   items: DoseItem[];
 }
 
@@ -94,7 +96,6 @@ interface Offer {
   id: string;
   name: string;
   description?: string;
-  image?: string;
   price: number;
   active: boolean;
   items: OfferItem[];
@@ -135,10 +136,8 @@ export default function AdminPromotionsAndCombos() {
   const [offerName, setOfferName] = React.useState('');
   const [offerDescription, setOfferDescription] = React.useState('');
   const [offerPrice, setOfferPrice] = React.useState<number | ''>('');
-  const [offerImage, setOfferImage] = React.useState<File | null>(null);
   const [offerProductIds, setOfferProductIds] = React.useState<string[]>([]);
   const [offerProductQuantities, setOfferProductQuantities] = React.useState<Record<string, number>>({});
-  const [offerImagePreview, setOfferImagePreview] = React.useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchData = React.useCallback(async () => {
@@ -177,15 +176,12 @@ export default function AdminPromotionsAndCombos() {
       setOfferProductQuantities(
         editingOffer.items.reduce((acc, item) => ({ ...acc, [item.productId]: item.quantity }), {})
       );
-      setOfferImagePreview(editingOffer.image || null);
     } else {
       setOfferName('');
       setOfferDescription('');
       setOfferPrice('');
       setOfferProductIds([]);
       setOfferProductQuantities({});
-      setOfferImage(null);
-      setOfferImagePreview(null);
     }
   }, [editingOffer]);
 
@@ -230,6 +226,13 @@ export default function AdminPromotionsAndCombos() {
     setEditingCombo(null);
     setEditingPromotion(null);
     setEditingDose(null);
+    setDoseCategoryId('');
+    setChoosableCategories({});
+    setChoosableQuantities({});
+    setChoosableNameFilters({});
+    setVolumeToDiscount({});
+    setDiscountBy({});
+    setProductQuantities({});
   };
 
   const clearSearches = () => {
@@ -259,15 +262,53 @@ export default function AdminPromotionsAndCombos() {
   const handleEditPromotion = (promotion: Promotion) => {
     setEditingPromotion(promotion);
     setSelectedProducts(promotion.products.map(product => product.id));
+    setIsPromotionDialogOpen(true);
   };
 
   const handleEditDose = (dose: Dose) => {
     setEditingDose(dose);
+    setDoseCategoryId(dose.categoryId ?? '');
     setSelectedProducts(dose.items.map(item => item.productId));
     setProductQuantities(
       dose.items.reduce((acc, item) => ({
         ...acc,
         [item.productId]: item.quantity
+      }), {})
+    );
+    setProductTypes(
+      dose.items.reduce((acc, item) => ({
+        ...acc,
+        [item.productId]: item.allowFlavorSelection ? 'choosable' : 'fixed'
+      }), {})
+    );
+    setChoosableCategories(
+      dose.items.reduce((acc, item) => ({
+        ...acc,
+        ...(item.categoryId ? { [item.productId]: item.categoryId } : {})
+      }), {})
+    );
+    setChoosableQuantities(
+      dose.items.reduce((acc, item) => ({
+        ...acc,
+        ...(item.allowFlavorSelection ? { [item.productId]: item.quantity } : {})
+      }), {})
+    );
+    setChoosableNameFilters(
+      dose.items.reduce((acc, item) => ({
+        ...acc,
+        ...(item.nameFilter ? { [item.productId]: item.nameFilter } : {})
+      }), {})
+    );
+    setVolumeToDiscount(
+      dose.items.reduce((acc, item) => ({
+        ...acc,
+        ...(item.volumeToDiscount != null ? { [item.productId]: item.volumeToDiscount } : {})
+      }), {})
+    );
+    setDiscountBy(
+      dose.items.reduce((acc, item) => ({
+        ...acc,
+        ...(item.discountBy ? { [item.productId]: item.discountBy as 'unit' | 'volume' } : {})
       }), {})
     );
   };
@@ -282,18 +323,10 @@ export default function AdminPromotionsAndCombos() {
     setIsSubmitting(true);
     const form = e.currentTarget;
     const formData = new FormData(form);
-    let imageUrl = editingCombo.image || '';
-    const imageFile = formData.get('image') as File;
-    console.log('Arquivo de imagem (edição):', imageFile);
-    if (imageFile && imageFile.size > 0) {
-      imageUrl = await uploadToCloudinary(imageFile);
-      console.log('URL da imagem (Cloudinary, edição):', imageUrl);
-    }
     const comboData = {
       name: formData.get('name'),
       description: formData.get('description'),
       price: formData.get('price'),
-      image: imageUrl,
       items: JSON.stringify(
         selectedProducts.map(productId => {
           if (productTypes[productId] === 'choosable') {
@@ -338,19 +371,11 @@ export default function AdminPromotionsAndCombos() {
     setIsSubmitting(true);
     const form = e.currentTarget;
     const formData = new FormData(form);
-    let imageUrl = editingPromotion.image || '';
-    const imageFile = formData.get('image') as File;
-    console.log('Arquivo de imagem (edição):', imageFile);
-    if (imageFile && imageFile.size > 0) {
-      imageUrl = await uploadToCloudinary(imageFile);
-      console.log('URL da imagem (Cloudinary, edição):', imageUrl);
-    }
     const promoData = {
       name: formData.get('name'),
       description: formData.get('description'),
       price: formData.get('price'),
       originalPrice: formData.get('originalPrice'),
-      image: imageUrl,
       productIds: JSON.stringify(selectedProducts),
       active: String(editingPromotion.active)
     };
@@ -485,18 +510,10 @@ export default function AdminPromotionsAndCombos() {
     setIsSubmitting(true);
     const form = e.currentTarget;
     const formData = new FormData(form);
-    let imageUrl = '';
-    const imageFile = formData.get('image') as File;
-    console.log('Arquivo de imagem (cadastro):', imageFile);
-    if (imageFile && imageFile.size > 0) {
-      imageUrl = await uploadToCloudinary(imageFile);
-      console.log('URL da imagem (Cloudinary, cadastro):', imageUrl);
-    }
     const comboData = {
       name: formData.get('name'),
       description: formData.get('description'),
       price: formData.get('price'),
-      image: imageUrl,
       items: JSON.stringify(
         selectedProducts.map(productId => {
           if (productTypes[productId] === 'choosable') {
@@ -540,19 +557,11 @@ export default function AdminPromotionsAndCombos() {
     setIsSubmitting(true);
     const form = e.currentTarget;
     const formData = new FormData(form);
-    let imageUrl = '';
-    const imageFile = formData.get('image') as File;
-    console.log('Arquivo de imagem (cadastro):', imageFile);
-    if (imageFile && imageFile.size > 0) {
-      imageUrl = await uploadToCloudinary(imageFile);
-      console.log('URL da imagem (Cloudinary, cadastro):', imageUrl);
-    }
     const promoData = {
       name: formData.get('name'),
       description: formData.get('description'),
       price: formData.get('price'),
       originalPrice: formData.get('originalPrice'),
-      image: imageUrl,
       productIds: JSON.stringify(selectedProducts)
     };
     console.log('Payload enviado (cadastro):', promoData);
@@ -643,26 +652,7 @@ export default function AdminPromotionsAndCombos() {
 
   const handleOpenDoseDialog = (open: boolean) => {
     setIsDoseDialogOpen(open);
-    if (open) {
-      resetForm();
-      setDoseCategoryId('');
-      setSelectedProducts([]);
-      setProductTypes({});
-      setChoosableCategories({});
-      setChoosableQuantities({});
-      setChoosableNameFilters({});
-      setProductQuantities({});
-    }
-    if (!open) {
-      resetForm();
-      setDoseCategoryId('');
-      setSelectedProducts([]);
-      setProductTypes({});
-      setChoosableCategories({});
-      setChoosableQuantities({});
-      setChoosableNameFilters({});
-      setProductQuantities({});
-    }
+    if (!open) resetForm();
   };
 
   const handleOpenOfferDialog = (offer?: Offer) => {
@@ -694,13 +684,6 @@ export default function AdminPromotionsAndCombos() {
     setOfferProductQuantities(q => ({ ...q, [productId]: value }));
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setOfferImage(file);
-      setOfferImagePreview(URL.createObjectURL(file));
-    }
-  };
 
   const handleSaveOffer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -712,24 +695,10 @@ export default function AdminPromotionsAndCombos() {
       productId,
       quantity: offerProductQuantities[productId] || 1
     }));
-    let imageUrl = offerImagePreview;
-    if (offerImage) {
-      // Upload para Cloudinary se necessário
-      const formData = new FormData();
-      formData.append('file', offerImage);
-      formData.append('upload_preset', 'ml_default');
-      const res = await fetch('https://api.cloudinary.com/v1_1/demo/image/upload', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      imageUrl = data.secure_url;
-    }
     const payload = {
       name: offerName,
       description: offerDescription,
       price: Number(offerPrice),
-      image: imageUrl,
       items
     };
     try {
@@ -836,11 +805,6 @@ export default function AdminPromotionsAndCombos() {
                             </Button>
                           </div>
                         </div>
-                        <div>
-                          {combo.image && (
-                            <img src={combo.image} alt={combo.name} className="w-16 h-16 object-cover rounded shadow-md border border-gray-300 bg-element-white" />
-                          )}
-                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
@@ -920,11 +884,6 @@ export default function AdminPromotionsAndCombos() {
                             </Button>
                           </div>
                         </div>
-                        <div>
-                          {promotion.image && (
-                            <img src={promotion.image} alt={promotion.name} className="w-16 h-16 object-cover rounded shadow-md border border-gray-300 bg-element-white" />
-                          )}
-                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
@@ -989,7 +948,7 @@ export default function AdminPromotionsAndCombos() {
                               variant="ghost"
                               size="icon"
                               className="hover:bg-primary/10"
-                              onClick={() => { setEditingDose(dose); setIsDoseDialogOpen(true); }}
+                              onClick={() => { handleEditDose(dose); setIsDoseDialogOpen(true); }}
                               title="Editar"
                             >
                               <Edit className="w-4 h-4 text-primary" />
@@ -1004,11 +963,6 @@ export default function AdminPromotionsAndCombos() {
                               <Trash2 className="w-4 h-4 text-red-500" />
                             </Button>
                           </div>
-                        </div>
-                        <div>
-                          {dose.image && (
-                            <img src={dose.image} alt={dose.name} className="w-16 h-16 object-cover rounded shadow-md border border-gray-300 bg-element-white" />
-                          )}
                         </div>
                       </div>
                     </CardHeader>
@@ -1073,9 +1027,6 @@ export default function AdminPromotionsAndCombos() {
                           <div key={item.id}>{item.quantity}x {item.product.name}</div>
                         ))}
                       </div>
-                      {offer.image && (
-                        <img src={offer.image} alt="Imagem da oferta" className="w-full h-32 object-cover rounded mt-2" />
-                      )}
                     </CardContent>
                     <CardFooter className="flex justify-between items-center gap-2">
                       <div className="flex items-center gap-2">
@@ -1108,13 +1059,6 @@ export default function AdminPromotionsAndCombos() {
                     <div>
                       <Label>Preço total*</Label>
                       <Input type="number" min={0} step={0.01} value={offerPrice} onChange={e => setOfferPrice(e.target.value ? Number(e.target.value) : '')} required />
-                    </div>
-                    <div>
-                      <Label>Imagem</Label>
-                      <Input type="file" accept="image/*" ref={fileInputRef} onChange={handleImageChange} />
-                      {offerImagePreview && (
-                        <img src={offerImagePreview} alt="Prévia" className="w-full h-32 object-cover rounded mt-2" />
-                      )}
                     </div>
                     <div>
                       <Label>Produtos*</Label>
@@ -1366,16 +1310,6 @@ export default function AdminPromotionsAndCombos() {
                 />
               </div>
               <div>
-                <Label htmlFor="image">Imagem</Label>
-                <Input
-                  id="image"
-                  name="image"
-                  type="file"
-                  accept="image/*"
-                  className="w-full"
-                />
-              </div>
-              <div>
                 <Label htmlFor="combo-category">Categoria</Label>
                 <Select value={comboCategoryId} onValueChange={setComboCategoryId} required>
                   <SelectTrigger className="w-full">
@@ -1500,28 +1434,28 @@ export default function AdminPromotionsAndCombos() {
         </DialogContent>
       </Dialog>
       {/* Modal de criação de promoção */}
-      <Dialog open={isPromotionDialogOpen} onOpenChange={setIsPromotionDialogOpen}>
+      <Dialog open={isPromotionDialogOpen} onOpenChange={(open) => { setIsPromotionDialogOpen(open); if (!open) setEditingPromotion(null); }}>
         <DialogContent className="w-full max-w-2xl p-2 sm:p-6 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Criar Nova Promoção</DialogTitle>
+            <DialogTitle>{editingPromotion ? 'Editar Promoção' : 'Criar Nova Promoção'}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreatePromotion} className="space-y-6" encType="multipart/form-data">
+          <form onSubmit={editingPromotion ? handleUpdatePromotion : handleCreatePromotion} className="space-y-6" encType="multipart/form-data" key={editingPromotion?.id ?? 'new'}>
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
               <div>
                 <Label htmlFor="name">Nome da Promoção</Label>
-                <Input id="name" name="name" required className="w-full" />
+                <Input id="name" name="name" required className="w-full" defaultValue={editingPromotion?.name ?? ''} />
               </div>
               <div>
                 <Label htmlFor="description">Descrição</Label>
-                <Textarea id="description" name="description" className="w-full" />
+                <Textarea id="description" name="description" className="w-full" defaultValue={editingPromotion?.description ?? ''} />
               </div>
               <div>
                 <Label htmlFor="price">Preço Promocional</Label>
-                <Input id="price" name="price" type="number" step="0.01" required className="w-full" />
+                <Input id="price" name="price" type="number" step="0.01" required className="w-full" defaultValue={editingPromotion?.price ?? ''} />
               </div>
               <div>
                 <Label htmlFor="originalPrice">Preço Original</Label>
-                <Input id="originalPrice" name="originalPrice" type="number" step="0.01" required className="w-full" />
+                <Input id="originalPrice" name="originalPrice" type="number" step="0.01" required className="w-full" defaultValue={editingPromotion?.originalPrice ?? ''} />
               </div>
               <div>
                 <Label htmlFor="image">Imagem</Label>
@@ -1560,9 +1494,9 @@ export default function AdminPromotionsAndCombos() {
             </div>
             <DialogFooter>
               <Button type="submit" disabled={isSubmitting || selectedProducts.length === 0}>
-                {isSubmitting ? 'Criando...' : 'Criar Promoção'}
+                {isSubmitting ? (editingPromotion ? 'Salvando...' : 'Criando...') : (editingPromotion ? 'Salvar Alterações' : 'Criar Promoção')}
               </Button>
-              <Button type="button" variant="outline" onClick={() => setIsPromotionDialogOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => { setIsPromotionDialogOpen(false); setEditingPromotion(null); }}>
                 Cancelar
               </Button>
             </DialogFooter>
@@ -1575,11 +1509,11 @@ export default function AdminPromotionsAndCombos() {
           <DialogHeader>
             <DialogTitle>{editingDose ? 'Editar Dose' : 'Adicionar Dose'}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={editingDose ? handleUpdateDose : handleCreateDose} className="space-y-6">
+          <form key={editingDose?.id ?? 'new'} onSubmit={editingDose ? handleUpdateDose : handleCreateDose} className="space-y-6">
             <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
               <div>
                 <Label htmlFor="name">Nome da Dose</Label>
-                <Input name="name" placeholder="Nome da Dose" defaultValue={editingDose?.name || ''} required className="w-full" />
+                <Input name="name" placeholder="Nome da Dose" defaultValue={editingDose?.name ?? ''} required className="w-full" />
               </div>
               <div>
                 <Label htmlFor="description">Descrição</Label>
@@ -1588,18 +1522,6 @@ export default function AdminPromotionsAndCombos() {
               <div>
                 <Label htmlFor="price">Preço (R$)</Label>
                 <Input name="price" placeholder="Preço (R$)" type="number" step="0.01" defaultValue={editingDose?.price || ''} required className="w-full" />
-              </div>
-              <div>
-                <Label htmlFor="image">Imagem</Label>
-                {editingDose?.image && (
-                  <img src={editingDose.image} alt="Imagem atual" className="h-24 mb-2 rounded object-contain border" />
-                )}
-                <Input
-                  name="image"
-                  type="file"
-                  accept="image/*"
-                  className="w-full"
-                />
               </div>
               <div>
                 <Label htmlFor="dose-category-edit">Categoria</Label>

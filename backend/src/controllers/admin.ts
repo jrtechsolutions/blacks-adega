@@ -9,6 +9,10 @@ export const adminController = {
   login: async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+      throw new AppError('Credenciais inválidas', 401);
+    }
+
     const user = await prisma.user.findUnique({
       where: { email },
     });
@@ -224,11 +228,14 @@ export const adminController = {
 
   getUsers: async (req: Request, res: Response) => {
     const { roles } = req.query;
-    let where = {};
+    let where: any = {};
     if (roles) {
       const rolesArray = String(roles).split(',').map(r => r.trim().toUpperCase());
-      where = { role: { in: rolesArray } };
+      where.role = { in: rolesArray };
     }
+    // Incluir apenas usuários ativos por padrão
+    where.active = true;
+    
     const users = await prisma.user.findMany({
       where,
       select: {
@@ -237,6 +244,7 @@ export const adminController = {
         email: true,
         phone: true,
         role: true,
+        active: true,
         createdAt: true,
         updatedAt: true,
         orders: {
@@ -283,13 +291,117 @@ export const adminController = {
   },
 
   deleteUser: async (req: Request, res: Response) => {
-    const { id } = req.params;
+    try {
+      const { id } = req.params;
 
-    await prisma.user.delete({
-      where: { id },
-    });
+      // Verificar se o usuário existe
+      const user = await prisma.user.findUnique({
+        where: { id },
+        include: {
+          orders: true,
+          sales: true,
+          addresses: true,
+          cart: true,
+          cashFlows: true,
+          notifications: true,
+          comandas: true,
+          pdvSessions: true,
+        },
+      });
 
-    res.json({ message: 'Usuário excluído com sucesso' });
+      if (!user) {
+        throw new AppError('Usuário não encontrado', 404);
+      }
+
+      // Verificar se é o último admin
+      if (user.role === 'ADMIN') {
+        const adminCount = await prisma.user.count({
+          where: { role: 'ADMIN', active: true },
+        });
+        if (adminCount <= 1) {
+          throw new AppError('Não é possível excluir o último administrador do sistema', 400);
+        }
+      }
+
+      // Verificar se há vendas ou pedidos relacionados
+      const salesCount = await prisma.sale.count({ where: { userId: id } });
+      const ordersCount = await prisma.order.count({ where: { userId: id } });
+      
+      if (salesCount > 0 || ordersCount > 0) {
+        // Se houver vendas ou pedidos, não podemos deletar o usuário
+        // Vamos apenas desativar o usuário ao invés de deletar
+        await prisma.user.update({
+          where: { id },
+          data: { active: false },
+        });
+        // Retorna sucesso com mensagem informativa
+        return res.status(200).json({ 
+          message: 'Não é possível excluir o usuário pois ele possui vendas ou pedidos relacionados. O usuário foi desativado ao invés de excluído.',
+          deactivated: true
+        });
+      }
+
+      // Deletar relacionamentos primeiro (transação)
+      await prisma.$transaction(async (tx) => {
+        // Deletar notificações
+        await tx.notification.deleteMany({
+          where: { userId: id },
+        });
+
+        // Deletar cash flows
+        await tx.cashFlow.deleteMany({
+          where: { userId: id },
+        });
+
+        // Deletar carrinho
+        await tx.cart.deleteMany({
+          where: { userId: id },
+        });
+
+        // Deletar endereços
+        await tx.address.deleteMany({
+          where: { userId: id },
+        });
+
+        // Deletar comandas
+        await tx.comanda.deleteMany({
+          where: { createdBy: id },
+        });
+
+        // Deletar sessões PDV
+        await tx.pDVSession.deleteMany({
+          where: { openedBy: id },
+        });
+        await tx.pDVSession.updateMany({
+          where: { closedBy: id },
+          data: { closedBy: null },
+        });
+
+        // Finalmente, deletar o usuário
+        await tx.user.delete({
+          where: { id },
+        });
+      });
+
+      res.json({ message: 'Usuário excluído com sucesso' });
+    } catch (error: any) {
+      console.error('Erro ao excluir usuário:', error);
+      
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      // Erro do Prisma
+      if (error.code === 'P2003') {
+        throw new AppError('Não é possível excluir o usuário pois ele possui dados relacionados. Tente desativar o usuário ao invés de excluí-lo.', 400);
+      }
+
+      if (error.code === 'P2025') {
+        throw new AppError('Usuário não encontrado', 404);
+      }
+
+      throw new AppError('Erro ao excluir usuário: ' + (error.message || 'Erro desconhecido'), 500);
+    }
   },
 
   // Criar venda do PDV físico
@@ -818,7 +930,7 @@ export const adminController = {
     }
   },
 
-  // Obter sessão ativa do PDV
+  // Obter sessão ativa do PDV (inclui total de vendas da sessão para cálculo do caixa final)
   getActivePDVSession: async (req: Request, res: Response) => {
     try {
       const activeSession = await prisma.pDVSession.findFirst({
@@ -829,7 +941,20 @@ export const adminController = {
         orderBy: { openedAt: 'desc' }
       });
 
-      res.json(activeSession);
+      if (!activeSession) {
+        return res.json(null);
+      }
+
+      const sessionSales = await prisma.sale.findMany({
+        where: {
+          pdvSessionId: activeSession.id,
+          status: 'COMPLETED'
+        },
+        select: { total: true }
+      });
+      const totalSales = sessionSales.reduce((sum, sale) => sum + sale.total, 0);
+
+      res.json({ ...activeSession, totalSales });
     } catch (error) {
       console.error('Erro ao buscar sessão ativa:', error);
       res.status(500).json({ error: 'Erro ao buscar sessão ativa.' });

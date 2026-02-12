@@ -50,6 +50,10 @@ export const clientController = {
   login: async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+      throw new AppError('Credenciais inválidas', 401);
+    }
+
     const user = await prisma.user.findUnique({
       where: { email },
     });

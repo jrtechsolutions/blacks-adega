@@ -103,45 +103,53 @@ export const productController = {
       const { id } = req.params;
       const { name, description, price, categoryId, supplierId, stock, minStock, barcode, costPrice, margin, active, image, isFractioned, totalVolume, unitVolume } = req.body;
       
-      let finalPrice = parseFloat(price);
+      const existing = await prisma.product.findUnique({ where: { id } });
+      if (!existing) {
+        return res.status(404).json({ error: 'Produto não encontrado' });
+      }
+
+      let finalPrice = price != null ? parseFloat(price) : existing.price;
+      if (isNaN(finalPrice)) finalPrice = existing.price;
       
       // Se margin for fornecido, calcular o preço baseado no custo e margem
       if (margin && costPrice) {
         const marginPercent = parseFloat(margin);
-        finalPrice = parseFloat(costPrice) / (1 - (marginPercent / 100));
+        const calculated = parseFloat(costPrice) / (1 - (marginPercent / 100));
+        if (!isNaN(calculated)) finalPrice = calculated;
       }
 
-      const stockValue = parseInt(stock);
-      const isFractionedValue = isFractioned === true || isFractioned === 'true';
-      const totalVolumeValue = totalVolume ? parseFloat(totalVolume) : null;
+      const stockValue = stock != null ? parseInt(stock) : existing.stock;
+      const validStock = isNaN(stockValue) ? existing.stock : stockValue;
+      const isFractionedValue = isFractioned !== undefined && isFractioned !== null
+        ? (isFractioned === true || isFractioned === 'true')
+        : existing.isFractioned;
+      const totalVolumeValue = totalVolume ? parseFloat(totalVolume) : existing.totalVolume;
       
       // Calcular o status do estoque
-      const stockStatus = calculateStockStatus(stockValue, isFractionedValue, totalVolumeValue);
+      const stockStatus = calculateStockStatus(validStock, isFractionedValue, totalVolumeValue);
+      
+      const updateData: any = {
+        name: name ?? existing.name,
+        description: description ?? existing.description,
+        price: finalPrice,
+        costPrice: costPrice != null ? parseFloat(costPrice) : existing.costPrice,
+        margin: margin != null ? parseFloat(margin) : existing.margin,
+        stock: validStock,
+        minStock: minStock != null ? parseInt(minStock) : existing.minStock,
+        barcode: barcode ?? existing.barcode,
+        active: typeof active === 'boolean' ? active : (active === 'true' || active === '1' ? true : existing.active),
+        image: image ?? existing.image,
+        isFractioned: isFractionedValue,
+        totalVolume: totalVolumeValue,
+        unitVolume: unitVolume != null ? parseFloat(unitVolume) : existing.unitVolume,
+        stockStatus,
+      };
+      if (categoryId) updateData.category = { connect: { id: categoryId } };
+      if (supplierId !== undefined) updateData.supplier = supplierId ? { connect: { id: supplierId } } : { disconnect: true };
       
       const product = await prisma.product.update({
         where: { id },
-        data: {
-          name,
-          description,
-          price: finalPrice,
-          costPrice: costPrice ? parseFloat(costPrice) : undefined,
-          margin: margin ? parseFloat(margin) : undefined,
-          stock: stockValue,
-          minStock: minStock ? parseInt(minStock) : undefined,
-          barcode,
-          active: typeof active === 'boolean' ? active : active === 'true' || active === '1',
-          image: image || undefined,
-          isFractioned: isFractionedValue,
-          totalVolume: totalVolumeValue,
-          unitVolume: unitVolume ? parseFloat(unitVolume) : null,
-          stockStatus,
-          category: {
-            connect: { id: categoryId }
-          },
-          supplier: supplierId ? {
-            connect: { id: supplierId }
-          } : undefined
-        },
+        data: updateData,
         include: {
           category: true,
           supplier: true

@@ -73,6 +73,7 @@ export function ComandaModal({
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<any[]>([]);
   const [combos, setCombos] = useState<any[]>([]);
+  const [promotions, setPromotions] = useState<any[]>([]);
   const [doses, setDoses] = useState<any[]>([]);
   const [offers, setOffers] = useState<any[]>([]);
   const [comboModalOpen, setComboModalOpen] = useState(false);
@@ -196,18 +197,20 @@ export function ComandaModal({
       Promise.all([
         api.get('/admin/products'),
         api.get('/admin/combos'),
+        api.get('/admin/promotions'),
         api.get('/admin/doses'),
         api.get('/admin/offers')
-      ]).then(([productsRes, combosRes, dosesRes, offersRes]) => {
+      ]).then(([productsRes, combosRes, promotionsRes, dosesRes, offersRes]) => {
         setProducts(productsRes.data.filter((p: any) => p.stock > 0));
         setCombos(combosRes.data);
+        setPromotions((promotionsRes.data || []).filter((p: any) => p.active !== false));
         setDoses(dosesRes.data);
         setOffers(offersRes.data);
       });
     }
   }, [open]);
 
-  // Unificar produtos, combos, doses e ofertas para exibição
+  // Unificar produtos, combos, promoções, doses e ofertas para exibição e busca
   const allItems = React.useMemo(() => [
     ...products.map(p => ({ ...p, type: 'product' })),
     ...combos.map(c => ({
@@ -216,6 +219,13 @@ export function ComandaModal({
       code: c.id.substring(0, 6),
       name: c.name,
       price: c.price,
+    })),
+    ...promotions.map(pr => ({
+      ...pr,
+      type: 'promotion',
+      code: pr.id.substring(0, 6),
+      name: pr.name,
+      price: pr.price,
     })),
     ...doses.map(d => ({
       ...d,
@@ -231,7 +241,7 @@ export function ComandaModal({
       name: o.name,
       price: o.price,
     }))
-  ], [products, combos, doses, offers]);
+  ], [products, combos, promotions, doses, offers]);
 
   // Busca dinâmica
   useEffect(() => {
@@ -364,11 +374,24 @@ export function ComandaModal({
     } else if (item.type === 'offer') {
       const offer = offers.find(o => o.id === item.id);
       if (offer) {
-        // Adicionar oferta à comanda - cada item da oferta será adicionado com sua quantidade
         await api.post(`/admin/comandas/${currentComanda.id}/items`, {
           offerId: item.id,
           quantity
         });
+      }
+    } else if (item.type === 'promotion') {
+      const promotion = promotions.find(pr => pr.id === item.id);
+      if (promotion && promotion.products && promotion.products.length > 0) {
+        const pricePerProduct = promotion.price / promotion.products.length;
+        for (const p of promotion.products) {
+          await api.post(`/admin/comandas/${currentComanda.id}/items`, {
+            productId: p.id,
+            quantity: 1 * quantity,
+            price: pricePerProduct,
+            name: p.name,
+            code: p.code || (p.id ? p.id.substring(0, 6) : 'SEM_CODIGO')
+          });
+        }
       }
     } else {
       // Produto normal: enviar todos os campos obrigatórios
@@ -789,19 +812,20 @@ export function ComandaModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
+        <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Receipt className="h-5 w-5" />
               {currentComanda ? `Comanda #${currentComanda.number} - ${currentComanda.customerName}` : 'Gerenciar Comandas'}
             </DialogTitle>
           </DialogHeader>
 
+          <div className="flex-1 min-h-0 overflow-y-auto">
           {showComandaList ? (
             // Comanda List View
-            <div className="flex flex-col h-full">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium">Comandas Abertas</h3>
+            <div className="flex flex-col min-h-0">
+              <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                <h3 className="text-lg font-medium text-[#FFFFFF]">Comandas Abertas</h3>
                 <Button onClick={() => {
                   setShowComandaList(false);
                   setCurrentComanda(null);
@@ -810,17 +834,17 @@ export function ComandaModal({
                 </Button>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto flex-1 min-h-0">
                 {openComandas.length > 0 ? (
                   openComandas.map((comanda) => (
-                    <div key={comanda.id} className="border rounded-lg p-4 bg-gray-50">
+                    <div key={comanda.id} className="border border-[#2E2E2E] rounded-lg p-4 bg-[#1F1F1F]">
                       <div className="flex justify-between items-start mb-2">
                         <div>
-                          <h4 className="font-medium">#{comanda.number} - {comanda.customerName}</h4>
-                          <p className="text-sm text-gray-500">
+                          <h4 className="font-medium text-[#FFFFFF]">#{comanda.number} - {comanda.customerName}</h4>
+                          <p className="text-sm text-[#CFCFCF]">
                             {comanda.items.length} itens • R$ {comanda.items.reduce((sum, item) => sum + item.total, 0).toFixed(2)}
                           </p>
-                          <p className="text-xs text-gray-400">
+                          <p className="text-xs text-[#CFCFCF]">
                             Criada em {new Date(comanda.createdAt).toLocaleString('pt-BR')}
                           </p>
                         </div>
@@ -844,7 +868,7 @@ export function ComandaModal({
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-8 text-gray-500 col-span-full">
+                  <div className="text-center py-8 text-[#CFCFCF] col-span-full">
                     Nenhuma comanda aberta
                   </div>
                 )}
@@ -852,13 +876,13 @@ export function ComandaModal({
             </div>
           ) : currentComanda ? (
             // Comanda Edit View
-            <div className="flex flex-col lg:flex-row gap-4 h-full overflow-hidden">
+            <div className="flex flex-col lg:flex-row gap-4 min-h-0">
               {/* Left side - Product search and display */}
-              <div className="flex-1 flex flex-col overflow-y-auto">
+              <div className="flex-1 flex flex-col min-h-0">
                 {/* Search bar */}
                 <div className="flex flex-col md:flex-row gap-2 mb-4">
                   <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#CFCFCF] h-4 w-4" />
                     <Input 
                       type="text" 
                       placeholder="Buscar por nome ou código..." 
@@ -892,31 +916,33 @@ export function ComandaModal({
                   </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto min-h-0">
                   {searchQuery.trim() !== '' && (
                     <div className="grid grid-cols-1 gap-2">
                       {filteredProducts.map(product => (
                         <button
-                          key={product.id}
-                          className="text-left p-3 border rounded-md hover:border-cyan-400 transition-colors bg-element-white w-full"
+                          key={`${product.type}-${product.id}`}
+                          className="text-left p-3 border border-[#2E2E2E] rounded-md hover:border-[#D4AF37] transition-colors bg-[#1F1F1F] w-full text-[#FFFFFF]"
                           onClick={async () => await addToComanda(product)}
-                          disabled={product.stock === 0}
+                          disabled={product.type === 'product' && product.stock === 0}
                         >
-                          <div className="font-medium">{product.code} - {product.name}</div>
-                          <div className="text-green-600 mt-1">R$ {product.price.toFixed(2)}</div>
-                          {product.type === 'combo' && <span className="text-xs text-blue-600">(Combo)</span>}
-                          {product.type === 'dose' && <span className="text-xs text-purple-600">(Dose)</span>}
+                          <div className="font-medium text-[#FFFFFF]">{product.code} - {product.name}</div>
+                          <div className="text-green-500 mt-1">R$ {product.price.toFixed(2)}</div>
+                          {product.type === 'combo' && <span className="text-xs text-blue-400">(Combo)</span>}
+                          {product.type === 'promotion' && <span className="text-xs text-amber-400">(Promoção)</span>}
+                          {product.type === 'dose' && <span className="text-xs text-purple-400">(Dose)</span>}
+                          {product.type === 'offer' && <span className="text-xs text-cyan-400">(Oferta)</span>}
                         </button>
                       ))}
                       {filteredProducts.length === 0 && (
-                        <div className="text-center py-4 text-gray-500">
+                        <div className="text-center py-4 text-[#CFCFCF]">
                           Nenhum produto encontrado para "{searchQuery}"
                         </div>
                       )}
                     </div>
                   )}
                   {searchQuery.trim() === '' && (
-                    <div className="text-center py-8 text-gray-500">
+                    <div className="text-center py-8 text-[#CFCFCF]">
                       Digite algo na busca para encontrar produtos
                     </div>
                   )}
@@ -924,9 +950,9 @@ export function ComandaModal({
               </div>
 
               {/* Right side - Comanda items */}
-              <div className="w-full lg:w-96 flex flex-col">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-medium text-lg">Itens da Comanda</h3>
+              <div className="w-full lg:w-96 flex flex-col min-h-0">
+                <div className="flex justify-between items-center mb-4 flex-shrink-0">
+                  <h3 className="font-medium text-lg text-[#FFFFFF]">Itens da Comanda</h3>
                   <div className="flex gap-2">
                     <Button 
                       variant="outline" 
@@ -952,17 +978,17 @@ export function ComandaModal({
                     (item, idx, arr) => arr.findIndex(i => i.id === item.id) === idx
                   );
                   return (
-                    <div className="flex-1 overflow-y-auto max-h-[60vh]">
+                    <div className="flex-1 overflow-y-auto min-h-0">
                       {uniqueItems.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between py-2">
+                        <div key={item.id} className="flex items-center justify-between py-2 border-b border-[#2E2E2E]">
                           <div className="flex-1">
                             <div className="flex items-center justify-between">
-                              <span className="font-medium">{item.name}</span>
-                              <span className="text-sm text-gray-500">
+                              <span className="font-medium text-[#FFFFFF]">{item.name}</span>
+                              <span className="text-sm text-[#CFCFCF]">
                                 {item.quantity} {item.discountBy === 'volume' || (item.discountBy === undefined && item.isFractioned) ? 'ml' : 'un'} x R$ {item.price.toFixed(2)}
                               </span>
                             </div>
-                            <div className="flex items-center justify-between text-sm text-gray-500">
+                            <div className="flex items-center justify-between text-sm text-[#CFCFCF]">
                               <span>Cód: {item.code}</span>
                               <span>R$ {item.total.toFixed(2)}</span>
                             </div>
@@ -975,7 +1001,7 @@ export function ComandaModal({
                             >
                               <Minus className="h-4 w-4" />
                             </Button>
-                            <span className="w-12 text-center">{item.quantity}</span>
+                            <span className="w-12 text-center text-[#FFFFFF]">{item.quantity}</span>
                             <Button
                               variant="outline"
                               size="icon"
@@ -997,10 +1023,10 @@ export function ComandaModal({
                   );
                 })()}
 
-                <div className="border-t pt-4 mt-4">
+                <div className="border-t border-[#2E2E2E] pt-4 mt-4 flex-shrink-0">
                   <div className="flex justify-between mb-4">
-                    <div className="font-medium">Total:</div>
-                    <div className="font-medium text-lg text-green-600">R$ {subtotal.toFixed(2)}</div>
+                    <div className="font-medium text-[#FFFFFF]">Total:</div>
+                    <div className="font-medium text-lg text-green-500">R$ {subtotal.toFixed(2)}</div>
                   </div>
                   
                   <div className="flex gap-2">
@@ -1020,14 +1046,14 @@ export function ComandaModal({
             // New Comanda View
             <div className="flex flex-col items-center justify-center py-8">
               <div className="text-center mb-6">
-                <Receipt className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">Criar Nova Comanda</h3>
-                <p className="text-gray-500">Digite o nome da pessoa para criar uma nova comanda</p>
+                <Receipt className="h-16 w-16 text-[#CFCFCF] mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2 text-[#FFFFFF]">Criar Nova Comanda</h3>
+                <p className="text-[#CFCFCF]">Digite o nome da pessoa para criar uma nova comanda</p>
               </div>
               
               <div className="w-full max-w-md space-y-4">
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#CFCFCF] h-4 w-4" />
                   <Input 
                     type="text" 
                     placeholder="Nome da pessoa" 
@@ -1056,6 +1082,7 @@ export function ComandaModal({
               </div>
             </div>
           )}
+          </div>
         </DialogContent>
       </Dialog>
 

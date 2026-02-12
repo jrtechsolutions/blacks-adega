@@ -1,21 +1,16 @@
 import 'reflect-metadata';
-import express from 'express';
 import { createServer } from 'http';
 import { env } from './config/env';
-import { initializeExpress } from './config/express';
+import app from './app';
 import { initializeSocket } from './config/socket';
 import { initializeCron } from './config/cron';
 import { initializeSentry } from './config/sentry';
 import logger from './config/logger';
 
-const app = express();
 const httpServer = createServer(app);
 
 // Inicializar Sentry
 initializeSentry();
-
-// Inicializar Express
-initializeExpress(app);
 
 // Inicializar Socket.IO
 const io = initializeSocket(httpServer);

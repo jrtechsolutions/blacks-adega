@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -10,19 +11,17 @@ async function main() {
     SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`;
   console.log('Tabelas existentes no banco:', tables.map(t => t.table_name));
 
-/*  // Apagar todas as tabelas do banco (exceto _prisma_migrations)
-await prisma.$executeRawUnsafe(`
-  DO $$ DECLARE
-    r RECORD;
-  BEGIN
-    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != '_prisma_migrations') LOOP
-      EXECUTE 'TRUNCATE TABLE \"' || r.tablename || '\" CASCADE;';
-    END LOOP;
-  END $$;
-`);
-console.log('Tabelas apagadas com sucesso!');
-
-  });
+ /* // Apagar todas as tabelas do banco (exceto _prisma_migrations)
+  await prisma.$executeRawUnsafe(`
+    DO $$ DECLARE
+      r RECORD;
+    BEGIN
+      FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename != '_prisma_migrations') LOOP
+        EXECUTE 'TRUNCATE TABLE \"' || r.tablename || '\" CASCADE;';
+      END LOOP;
+    END $$;
+  `);
+  console.log('Tabelas apagadas com sucesso!');
 
   // Criar usuário admin
   const adminEmail = 'pauloesjr2@gmail.com';
@@ -50,7 +49,8 @@ console.log('Tabelas apagadas com sucesso!');
     });
 
     console.log('✅ Admin criado com sucesso!');
-    console.log('📧 Email:', adminEmail);
+    console.log('📧 Email:', admin.email);
+    console.log('👤 Nome:', admin.name);
   } else {
     console.log('ℹ️ Admin já existe, pulando criação...');
   }

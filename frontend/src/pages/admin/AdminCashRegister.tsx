@@ -537,21 +537,28 @@ const AdminCashRegister = () => {
 
         {/* Quick Products Modal */}
         <Dialog open={quickProductsOpen} onOpenChange={setQuickProductsOpen}>
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col overflow-hidden bg-[#141414] border-[#2E2E2E]">
+            <DialogHeader className="flex-shrink-0">
+              <DialogTitle className="flex items-center gap-2 text-[#FFFFFF]">
                 <ListPlus className="h-5 w-5" />
                 Selecionar Produtos Rápidos
               </DialogTitle>
             </DialogHeader>
-            <div className="grid grid-cols-3 gap-4 py-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 py-4 flex-1 min-h-0 overflow-y-auto">
               {products.map((product) => (
                 <div 
                   key={product.id} 
-                  className={`border rounded-lg p-4 transition-colors ${product.pinned ? 'border-yellow-400 bg-yellow-50' : 'hover:border-yellow-400'}`}
+                  className={`border rounded-lg p-4 transition-colors cursor-pointer ${
+                    product.pinned 
+                      ? 'border-[#D4AF37] bg-[#1F1F1F]' 
+                      : 'border-[#2E2E2E] bg-[#1F1F1F] hover:border-[#D4AF37]'
+                  }`}
+                  onClick={() => togglePinProduct(product.id)}
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-sm font-medium">{product.name}</span>
+                    <span className={`text-sm font-medium ${product.pinned ? 'text-[#D4AF37]' : 'text-[#FFFFFF]'}`}>
+                      {product.name}
+                    </span>
                     <Checkbox 
                       id={`product-${product.id}`} 
                       checked={product.pinned}
@@ -559,16 +566,20 @@ const AdminCashRegister = () => {
                       onClick={(e) => e.stopPropagation()}
                     />
                   </div>
-                  <div className="text-sm text-gray-600">R$ {product.price.toFixed(2)}</div>
+                  <div className={`text-sm ${product.pinned ? 'text-[#D4AF37]' : 'text-[#CFCFCF]'}`}>
+                    R$ {product.price.toFixed(2)}
+                  </div>
                 </div>
               ))}
             </div>
-            <Button 
-              onClick={() => setQuickProductsOpen(false)} 
-              className="w-full bg-cyan-400 hover:bg-cyan-500 text-white"
-            >
-              Fechar
-            </Button>
+            <div className="flex-shrink-0 pt-4 border-t border-[#2E2E2E]">
+              <Button 
+                onClick={() => setQuickProductsOpen(false)} 
+                className="w-full bg-[#D4AF37] hover:bg-[#E6C76A] text-[#0B0B0B]"
+              >
+                Fechar
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
 

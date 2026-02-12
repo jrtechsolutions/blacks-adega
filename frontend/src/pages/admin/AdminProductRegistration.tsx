@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { 
-  Package,
-  Save, 
-  Upload, 
-  X
+  Save
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -43,24 +40,8 @@ interface ProductFormValues {
   margin: string;
   stock: string;
   description: string;
-  image: FileList | null;
   isFractioned: boolean;
   unitVolume: string;
-}
-
-const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-
-async function uploadToCloudinary(file: File): Promise<string> {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
-    method: 'POST',
-    body: formData,
-  });
-  const data = await res.json();
-  return data.secure_url;
 }
 
 // Funções utilitárias para cálculo
@@ -74,7 +55,6 @@ function calcularPrecoVenda(precoCusto: number, margem: number) {
 }
 
 const AdminProductRegistration = () => {
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -93,7 +73,6 @@ const AdminProductRegistration = () => {
       margin: "",
       stock: "",
       description: "",
-      image: null,
       isFractioned: false,
       unitVolume: ""
     }
@@ -139,13 +118,9 @@ const AdminProductRegistration = () => {
           margin: product.margin?.toString() || '',
           stock: product.stock.toString(),
           description: product.description || '',
-          image: null,
           isFractioned: product.isFractioned || false,
           unitVolume: product.unitVolume?.toString() || ''
         });
-        if (product.image) {
-          setPreviewImage(product.image);
-        }
         // Preenche o volume total ao editar
         if (product.isFractioned && product.unitVolume && product.stock) {
           setCalculatedTotalVolume((parseFloat(product.unitVolume) * parseFloat(product.stock)).toString());
@@ -153,19 +128,6 @@ const AdminProductRegistration = () => {
       });
     }
   }, [id, form]);
-
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPreviewImage(URL.createObjectURL(file));
-      form.setValue("image", e.target.files as FileList);
-    }
-  };
-
-  const clearImage = () => {
-    setPreviewImage(null);
-    form.setValue("image", null);
-  };
 
   const onSubmit = async (data: ProductFormValues) => {
     // Formata o preço para garantir que seja um número válido
@@ -193,11 +155,6 @@ const AdminProductRegistration = () => {
       return;
     }
 
-    let imageUrl = '';
-    if (data.image?.[0]) {
-      imageUrl = await uploadToCloudinary(data.image[0]);
-    }
-
     try {
       const token = JSON.parse(localStorage.getItem('auth-storage') || '{}')?.state?.token;
       await api.post('/admin/products', {
@@ -208,7 +165,6 @@ const AdminProductRegistration = () => {
         margin,
         stock: data.stock,
         description: data.description || '',
-        image: imageUrl,
         isFractioned: data.isFractioned,
         unitVolume,
         totalVolume
@@ -421,49 +377,6 @@ const AdminProductRegistration = () => {
                     )}
                   />
 
-                  <FormLabel>Imagem do Produto</FormLabel>
-                  <div className="mt-2">
-                    {previewImage ? (
-                      <div className="relative w-full">
-                        <img
-                          src={previewImage}
-                          alt="Preview"
-                          className="w-full h-48 object-contain"
-                        />
-                        <button
-                          type="button"
-                          onClick={clearImage}
-                          className="absolute top-0 right-0 bg-red-500 text-white p-1 rounded-full"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <Package className="mx-auto h-12 w-12 text-gray-400" />
-                        <div className="mt-2">
-                          <label
-                            htmlFor="image-upload"
-                            className="cursor-pointer bg-element-black text-white px-4 py-2 rounded-md hover:bg-element-black/90 inline-flex items-center gap-2"
-                          >
-                            <Upload className="h-4 w-4" />
-                            <span>Upload de Imagem</span>
-                          </label>
-                          <Input
-                            id="image-upload"
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleImageChange}
-                          />
-                          <p className="mt-2 text-xs text-gray-500">
-                            PNG, JPG ou GIF (max. 2MB)
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
                   <FormField
                     control={form.control}
                     name="isFractioned"
@@ -552,7 +465,7 @@ const AdminProductRegistration = () => {
                 </Button>
                 <Button 
                   type="submit"
-                  className="bg-element-black flex items-center gap-2"
+                  className="bg-[#D4AF37] hover:bg-[#E6C76A] text-[#0B0B0B] font-medium flex items-center gap-2 transition-colors"
                 >
                   <Save className="h-4 w-4" />
                   <span>Salvar Produto</span>

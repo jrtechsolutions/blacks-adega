@@ -53,7 +53,6 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import api from '@/lib/axios';
 import { Switch } from '@/components/ui/switch';
-import { uploadToCloudinary } from '@/lib/cloudinary';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Command,
@@ -86,7 +85,8 @@ interface Product {
   image?: string;
   active: boolean;
   isFractioned: boolean;
-  totalVolume: string;
+  totalVolume?: string | number;
+  unitVolume?: number | null;
 }
 
 // Category interface
@@ -128,7 +128,6 @@ const AdminStock = () => {
     costPrice: '',
     stock: '',
     description: '',
-    image: null as File | null,
     isFractioned: false,
     unitVolume: '',
     totalVolume: '',
@@ -261,6 +260,7 @@ const AdminStock = () => {
   // Função para abrir o modal de edição
   const openEditDialog = (product: Product) => {
     setEditingProduct(product);
+    const isFractioned = !!product.isFractioned;
     setEditForm({
       name: product.name,
       category: product.category?.id || '',
@@ -269,9 +269,9 @@ const AdminStock = () => {
       stock: product.stock.toString(),
       description: product.description || '',
       image: null,
-      isFractioned: false,
-      unitVolume: '',
-      totalVolume: '',
+      isFractioned,
+      unitVolume: product.unitVolume != null ? String(product.unitVolume) : '',
+      totalVolume: product.totalVolume != null ? String(product.totalVolume) : '',
       active: typeof product.active === 'boolean' ? product.active : true,
       margin: '',
     });
@@ -281,11 +281,6 @@ const AdminStock = () => {
   // Função para salvar as alterações
   const handleEditSave = async () => {
     try {
-      let imageUrl = editingProduct?.image || '';
-      if (editForm.image) {
-        // Função fictícia, substitua pelo seu método real de upload
-        imageUrl = await uploadToCloudinary(editForm.image);
-      }
       await api.put(`/admin/products/${editingProduct?.id}`, {
         name: editForm.name,
         categoryId: editForm.category,
@@ -293,7 +288,6 @@ const AdminStock = () => {
         costPrice: parseFloat(editForm.costPrice),
         stock: parseInt(editForm.stock),
         description: editForm.description,
-        image: imageUrl,
         isFractioned: editForm.isFractioned,
         unitVolume: editForm.isFractioned ? Number(editForm.unitVolume) : null,
         totalVolume: editForm.isFractioned && editForm.stock && editForm.unitVolume
@@ -313,7 +307,6 @@ const AdminStock = () => {
               },
               price: parseFloat(editForm.price),
               stock: parseInt(editForm.stock),
-              image: imageUrl
             }
           : p
       );
@@ -688,7 +681,6 @@ const AdminStock = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[80px]">Imagem</TableHead>
                       <TableHead>
                         <Button variant="ghost" onClick={() => requestSort('name')}>
                           Nome <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -716,15 +708,6 @@ const AdminStock = () => {
                   <TableBody>
                     {filteredProducts.map((product) => (
                       <TableRow key={product.id}>
-                        <TableCell>
-                          <img
-                            alt={product.name}
-                            className="aspect-square rounded-md object-cover"
-                            height="64"
-                            src={product.image ? (product.image.startsWith('http') ? product.image : `${import.meta.env.VITE_API_URL}${product.image}`) : '/placeholder.svg'}
-                            width="64"
-                          />
-                        </TableCell>
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell>{product.category?.name}</TableCell>
                         <TableCell>R$ {product.price.toFixed(2)}</TableCell>
@@ -786,13 +769,6 @@ const AdminStock = () => {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-4">
-                       <img
-                          alt={product.name}
-                          className="aspect-square rounded-md object-cover"
-                          height="60"
-                          src={product.image ? (product.image.startsWith('http') ? product.image : `${import.meta.env.VITE_API_URL}${product.image}`) : '/placeholder.svg'}
-                          width="60"
-                        />
                         <div>
                           <CardTitle>{product.name}</CardTitle>
                           <p className="text-sm text-muted-foreground">{product.category?.name}</p>
@@ -936,10 +912,10 @@ const AdminStock = () => {
 
       {/* Modal de Edição */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl bg-[#141414] border-[#2E2E2E]">
           <DialogHeader>
-            <DialogTitle>Editar Produto</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-[#FFFFFF]">Editar Produto</DialogTitle>
+            <DialogDescription className="text-[#CFCFCF]">
               Atualize as informações do produto {editingProduct?.name}.
             </DialogDescription>
           </DialogHeader>
@@ -947,17 +923,18 @@ const AdminStock = () => {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Nome do Produto</label>
+                <label className="text-sm font-medium text-[#FFFFFF]">Nome do Produto</label>
                 <Input
+                  className="bg-[#1F1F1F] border-[#2E2E2E] text-[#FFFFFF]"
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                 />
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-medium">Categoria</label>
+                <label className="text-sm font-medium text-[#FFFFFF]">Categoria</label>
                 <Select value={editForm.category} onValueChange={(value) => setEditForm({ ...editForm, category: value })}>
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-[#1F1F1F] border-[#2E2E2E] text-[#FFFFFF]">
                     <SelectValue placeholder="Selecione uma categoria" />
                   </SelectTrigger>
                   <SelectContent>
@@ -971,8 +948,9 @@ const AdminStock = () => {
 
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Preço de Venda</label>
+                <label className="text-sm font-medium text-[#FFFFFF]">Preço de Venda</label>
                 <Input
+                  className="bg-[#1F1F1F] border-[#2E2E2E] text-[#FFFFFF]"
                   type="number"
                   step="0.01"
                   value={editForm.price}
@@ -989,8 +967,9 @@ const AdminStock = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Preço de Custo</label>
+                <label className="text-sm font-medium text-[#FFFFFF]">Preço de Custo</label>
                 <Input
+                  className="bg-[#1F1F1F] border-[#2E2E2E] text-[#FFFFFF]"
                   type="number"
                   step="0.01"
                   value={editForm.costPrice}
@@ -1009,8 +988,9 @@ const AdminStock = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Margem (%)</label>
+                <label className="text-sm font-medium text-[#FFFFFF]">Margem (%)</label>
                 <Input
+                  className="bg-[#1F1F1F] border-[#2E2E2E] text-[#FFFFFF]"
                   type="number"
                   step="0.01"
                   value={editForm.margin || ''}
@@ -1029,8 +1009,9 @@ const AdminStock = () => {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Estoque</label>
+                <label className="text-sm font-medium text-[#FFFFFF]">Estoque</label>
                 <Input
+                  className="bg-[#1F1F1F] border-[#2E2E2E] text-[#FFFFFF]"
                   type="number"
                   value={editForm.stock}
                   onChange={(e) => setEditForm({ ...editForm, stock: e.target.value })}
@@ -1039,33 +1020,17 @@ const AdminStock = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Descrição</label>
+              <label className="text-sm font-medium text-[#FFFFFF]">Descrição</label>
               <textarea
-                className="w-full min-h-[100px] p-2 border rounded-md"
+                className="w-full min-h-[100px] p-2 border rounded-md bg-[#1F1F1F] border-[#2E2E2E] text-[#FFFFFF] placeholder:text-[#6B6B6B]"
                 value={editForm.description}
                 onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Imagem do Produto</label>
-              {editingProduct?.image && (
-                <img src={editingProduct.image} alt="Imagem atual" className="h-24 mb-2 rounded object-contain border" />
-              )}
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    setEditForm({ ...editForm, image: file });
-                  }
-                }}
-              />
-            </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
+              <label className="text-sm font-medium flex items-center gap-2 text-[#FFFFFF]">
                 <input
                   type="checkbox"
                   checked={editForm.isFractioned}
@@ -1077,8 +1042,9 @@ const AdminStock = () => {
             {editForm.isFractioned && (
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Volume da Garrafa (ml)</label>
+                  <label className="text-sm font-medium text-[#FFFFFF]">Volume da Garrafa (ml)</label>
                   <Input
+                    className="bg-[#1F1F1F] border-[#2E2E2E] text-[#FFFFFF]"
                     type="number"
                     min={1}
                     value={editForm.unitVolume || ''}
@@ -1090,8 +1056,9 @@ const AdminStock = () => {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-sm font-medium">Volume Total (ml)</label>
+                  <label className="text-sm font-medium text-[#FFFFFF]">Volume Total (ml)</label>
                   <Input
+                    className="bg-[#1F1F1F] border-[#2E2E2E] text-[#FFFFFF]"
                     type="text"
                     value={
                       editForm.stock && editForm.unitVolume
@@ -1102,13 +1069,13 @@ const AdminStock = () => {
                     disabled
                     placeholder="Volume total calculado"
                   />
-                  <p className="text-xs text-gray-500">Volume total disponível em estoque (estoque x volume da garrafa)</p>
+                  <p className="text-xs text-[#6B6B6B]">Volume total disponível em estoque (estoque x volume da garrafa)</p>
                 </div>
               </>
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium flex items-center gap-2">
+              <label className="text-sm font-medium flex items-center gap-2 text-[#FFFFFF]">
                 <input
                   type="checkbox"
                   checked={editForm.active}
@@ -1120,10 +1087,10 @@ const AdminStock = () => {
           </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} className="border-[#2E2E2E] text-[#CFCFCF] hover:bg-[#1F1F1F]">
               Cancelar
             </Button>
-            <Button onClick={handleEditSave} className="bg-element-black">
+            <Button onClick={handleEditSave} className="bg-[#D4AF37] hover:bg-[#E6C76A] text-[#0B0B0B]">
               Salvar alterações
             </Button>
           </DialogFooter>
@@ -1131,24 +1098,25 @@ const AdminStock = () => {
       </Dialog>
 
       <Dialog open={isStockEntryDialogOpen} onOpenChange={setIsStockEntryDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto w-[95vw] sm:w-full mx-2 sm:mx-0">
           <DialogHeader>
-            <DialogTitle>Registrar entrada de estoque</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-lg sm:text-xl">Registrar entrada de estoque</DialogTitle>
+            <DialogDescription className="text-xs sm:text-sm">
               Registre uma nova entrada de estoque. O sistema calculará automaticamente o novo custo médio ponderado.
             </DialogDescription>
           </DialogHeader>
-          <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={handleStockEntrySubmit}>
+          <form className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6" onSubmit={handleStockEntrySubmit}>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-1">Produto*</label>
-              <Command>
+              <label className="block text-sm font-medium mb-2 text-[#FFFFFF]">Produto*</label>
+              <Command className="rounded-lg border border-[#2E2E2E] bg-[#1F1F1F]">
                 <CommandInput
                   placeholder="Digite para buscar..."
                   value={productSearchTerm}
                   onValueChange={setProductSearchTerm}
+                  className="text-[#FFFFFF] placeholder:text-[#CFCFCF]"
                 />
-                <CommandList>
-                  <CommandEmpty>Nenhum produto encontrado.</CommandEmpty>
+                <CommandList className="max-h-[200px] sm:max-h-[300px] overflow-y-auto">
+                  <CommandEmpty className="text-[#CFCFCF] py-4">Nenhum produto encontrado.</CommandEmpty>
                   <CommandGroup>
                     {products.filter(product =>
                       product.name.toLowerCase().includes(productSearchTerm.toLowerCase())
@@ -1160,6 +1128,7 @@ const AdminStock = () => {
                           handleStockEntrySelect('productId', product.id);
                           setProductSearchTerm(product.name);
                         }}
+                        className="text-[#FFFFFF] hover:bg-[#2E2E2E] cursor-pointer py-3 px-3"
                       >
                         {product.name}
                       </CommandItem>
@@ -1171,25 +1140,25 @@ const AdminStock = () => {
 
             {/* Informações do produto selecionado */}
             {selectedProductInfo && (
-              <div className="md:col-span-2 p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium text-sm mb-2">Informações do Produto</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">Nome:</span>
-                    <p className="font-medium">{selectedProductInfo.name}</p>
+              <div className="md:col-span-2 p-3 sm:p-4 bg-[#1F1F1F] border border-[#2E2E2E] rounded-lg">
+                <h4 className="font-medium text-sm mb-3 text-[#FFFFFF]">Informações do Produto</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm">
+                  <div className="space-y-1">
+                    <span className="text-[#CFCFCF] block text-xs">Nome:</span>
+                    <p className="font-medium text-[#FFFFFF] break-words">{selectedProductInfo.name}</p>
                   </div>
-                  <div>
-                    <span className="text-gray-600">Estoque Atual:</span>
-                    <p className="font-medium">{selectedProductInfo.currentStock} unidades</p>
+                  <div className="space-y-1">
+                    <span className="text-[#CFCFCF] block text-xs">Estoque Atual:</span>
+                    <p className="font-medium text-[#FFFFFF]">{selectedProductInfo.currentStock} unidades</p>
                   </div>
-                  <div>
-                    <span className="text-gray-600">Custo Atual:</span>
-                    <p className="font-medium">R$ {selectedProductInfo.currentCost.toFixed(2)}</p>
+                  <div className="space-y-1">
+                    <span className="text-[#CFCFCF] block text-xs">Custo Atual:</span>
+                    <p className="font-medium text-[#FFFFFF]">R$ {selectedProductInfo.currentCost.toFixed(2)}</p>
                   </div>
                   {calculateNewCost() && (
-                    <div>
-                      <span className="text-gray-600">Novo Custo Médio:</span>
-                      <p className="font-medium text-green-600">R$ {calculateNewCost()!.toFixed(2)}</p>
+                    <div className="space-y-1">
+                      <span className="text-[#CFCFCF] block text-xs">Novo Custo Médio:</span>
+                      <p className="font-medium text-green-500">R$ {calculateNewCost()!.toFixed(2)}</p>
                     </div>
                   )}
                 </div>
@@ -1197,18 +1166,19 @@ const AdminStock = () => {
             )}
 
             <div>
-              <label className="block text-sm font-medium mb-1">Quantidade*</label>
+              <label className="block text-sm font-medium mb-2 text-[#FFFFFF]">Quantidade*</label>
               <Input 
                 type="number" 
                 name="quantity" 
                 value={stockEntryForm.quantity} 
                 onChange={handleStockEntryChange} 
                 required 
-                min={1} 
+                min={1}
+                className="h-11 text-base sm:text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Custo Unitário (R$)*</label>
+              <label className="block text-sm font-medium mb-2 text-[#FFFFFF]">Custo Unitário (R$)*</label>
               <Input 
                 type="number" 
                 name="unitCost" 
@@ -1216,20 +1186,34 @@ const AdminStock = () => {
                 onChange={handleStockEntryChange} 
                 required 
                 min={0.01} 
-                step={0.01} 
+                step={0.01}
+                className="h-11 text-base sm:text-sm"
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-1">Observação</label>
+              <label className="block text-sm font-medium mb-2 text-[#FFFFFF]">Observação</label>
               <Textarea 
                 name="notes" 
                 value={stockEntryForm.notes} 
                 onChange={handleStockEntryChange} 
-                rows={2} 
+                rows={3}
+                className="text-base sm:text-sm resize-none"
               />
             </div>
-            <div className="md:col-span-2 flex justify-end">
-              <Button type="submit" disabled={loadingStockEntry} className="bg-element-black hover:bg-element-black/90">
+            <div className="md:col-span-2 flex flex-col sm:flex-row gap-2 sm:justify-end">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setIsStockEntryDialogOpen(false)}
+                className="w-full sm:w-auto order-2 sm:order-1"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                disabled={loadingStockEntry} 
+                className="bg-[#D4AF37] hover:bg-[#E6C76A] text-[#0B0B0B] font-medium w-full sm:w-auto order-1 sm:order-2 h-11 text-base sm:text-sm transition-colors"
+              >
                 {loadingStockEntry ? 'Salvando...' : 'Registrar Entrada'}
               </Button>
             </div>

@@ -26,8 +26,8 @@ prisma.$on('query', (e: { query: string }) => {
   logger.debug('Query:', e.query);
 });
 
-prisma.$on('error', (e: { message: string }) => {
-  logger.error('Erro no Prisma:', e.message);
+prisma.$on('error', (e: any) => {
+  logger.error('Erro no Prisma:', e?.message ?? JSON.stringify(e));
 });
 
 prisma.$on('info', (e: { message: string }) => {
