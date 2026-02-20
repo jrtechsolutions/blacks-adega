@@ -36,6 +36,7 @@ export const comboController = {
   create: async (req: Request, res: Response) => {
     try {
       const { name, description, price, items, image, categoryId } = req.body;
+      console.log('[Combo] POST /combos - recebido', { name, price, categoryId });
       const parsedItems = JSON.parse(items);
       const combo = await prisma.combo.create({
         data: {
@@ -68,9 +69,10 @@ export const comboController = {
           category: true
         }
       });
+      console.log('[Combo] Combo criado com sucesso', { id: combo.id, name: combo.name });
       res.json(combo);
     } catch (error) {
-      console.error('Erro ao criar combo:', error);
+      console.error('[Combo] Erro ao criar combo:', error);
       res.status(500).json({ error: 'Erro ao criar combo' });
     }
   },

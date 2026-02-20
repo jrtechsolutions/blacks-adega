@@ -9,6 +9,30 @@ import { Plus, Edit, Trash2, Tag, Package, Search } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import api from '@/lib/api';
 import { toast } from 'sonner';
+
+const CADASTRO_TOAST_ID = 'cadastro-salvando';
+
+async function requestWithRetry(method: 'post' | 'put', url: string, data: any, options?: any) {
+  const maxRetries = 2;
+  let lastErr: any;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      if (method === 'put') return await api.put(url, data, options);
+      return await api.post(url, data, options);
+    } catch (err: any) {
+      lastErr = err;
+      const isNetwork = !err.response && (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED');
+      if (isNetwork && attempt < maxRetries) {
+        console.log(`[Cadastro] Falha de rede, retry ${attempt + 1}/${maxRetries} em 5s...`, { url });
+        toast.loading(`Salvando... (tentativa ${attempt + 2})`, { id: CADASTRO_TOAST_ID });
+        await new Promise(r => setTimeout(r, 5000));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
 import { formatPrice } from '@/lib/utils';
 import AdminLayout from '@/components/admin/AdminLayout';
 import {
@@ -534,15 +558,20 @@ export default function AdminPromotionsAndCombos() {
       ),
       categoryId: comboCategoryId,
     };
-    console.log('Payload enviado (cadastro):', comboData);
+    console.log('[Combo] Iniciando cadastro', { name: comboData.name, price: comboData.price });
+    toast.loading('Salvando...', { id: CADASTRO_TOAST_ID });
     try {
-      await api.post('/admin/combos', comboData);
+      await requestWithRetry('post', '/admin/combos', comboData);
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Combo] Cadastro concluído com sucesso', { name: comboData.name });
       toast.success('Combo criado com sucesso');
       fetchData();
       resetForm();
       setIsComboDialogOpen(false);
-    } catch (error) {
-      toast.error('Erro ao criar combo');
+    } catch (error: any) {
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Combo] Erro ao criar', { name: comboData.name, status: error?.response?.status, message: error?.message });
+      toast.error(error?.response?.data?.error || 'Erro ao criar combo');
     } finally {
       setIsSubmitting(false);
     }
@@ -564,15 +593,20 @@ export default function AdminPromotionsAndCombos() {
       originalPrice: formData.get('originalPrice'),
       productIds: JSON.stringify(selectedProducts)
     };
-    console.log('Payload enviado (cadastro):', promoData);
+    console.log('[Promoção] Iniciando cadastro', { name: promoData.name, price: promoData.price });
+    toast.loading('Salvando...', { id: CADASTRO_TOAST_ID });
     try {
-      await api.post('/admin/promotions', promoData);
+      await requestWithRetry('post', '/admin/promotions', promoData);
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Promoção] Cadastro concluído com sucesso', { name: promoData.name });
       toast.success('Promoção criada com sucesso');
       fetchData();
       resetForm();
       setIsPromotionDialogOpen(false);
-    } catch (error) {
-      toast.error('Erro ao criar promoção');
+    } catch (error: any) {
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Promoção] Erro ao criar', { name: promoData.name, status: error?.response?.status, message: error?.message });
+      toast.error(error?.response?.data?.error || 'Erro ao criar promoção');
     } finally {
       setIsSubmitting(false);
     }
@@ -611,16 +645,23 @@ export default function AdminPromotionsAndCombos() {
     formData.set('items', JSON.stringify(doseItems));
     formData.set('active', String(editingDose?.active || true));
     formData.set('categoryId', doseCategoryId || '');
+    const doseName = formData.get('name');
+    console.log('[Dose] Iniciando cadastro', { name: doseName, price: formData.get('price') });
+    toast.loading('Salvando...', { id: CADASTRO_TOAST_ID });
     try {
-      await api.post('/admin/doses', formData, {
+      await requestWithRetry('post', '/admin/doses', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Dose] Cadastro concluído com sucesso', { name: doseName });
       toast.success('Dose cadastrada com sucesso');
       fetchData();
       resetForm();
       setIsDoseDialogOpen(false);
-    } catch (error) {
-      toast.error('Erro ao cadastrar dose');
+    } catch (error: any) {
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Dose] Erro ao cadastrar', { name: doseName, status: error?.response?.status, message: error?.message });
+      toast.error(error?.response?.data?.error || 'Erro ao cadastrar dose');
     } finally {
       setIsSubmitting(false);
     }
@@ -701,18 +742,24 @@ export default function AdminPromotionsAndCombos() {
       price: Number(offerPrice),
       items
     };
+    const isCreate = !editingOffer;
+    console.log(isCreate ? '[Oferta] Iniciando cadastro' : '[Oferta] Iniciando atualização', { name: offerName, price: payload.price });
+    toast.loading('Salvando...', { id: CADASTRO_TOAST_ID });
     try {
       if (editingOffer) {
-        await api.put(`/admin/offers/${editingOffer.id}`, payload);
-        toast.success('Oferta atualizada com sucesso!');
+        await requestWithRetry('put', `/admin/offers/${editingOffer.id}`, payload);
       } else {
-        await api.post('/admin/offers', payload);
-        toast.success('Oferta criada com sucesso!');
+        await requestWithRetry('post', '/admin/offers', payload);
       }
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Oferta] Salvo com sucesso', { name: offerName });
+      toast.success(isCreate ? 'Oferta criada com sucesso!' : 'Oferta atualizada com sucesso!');
       setIsOfferDialogOpen(false);
       fetchData();
-    } catch (err) {
-      toast.error('Erro ao salvar oferta');
+    } catch (err: any) {
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Oferta] Erro ao salvar', { name: offerName, status: err?.response?.status, message: err?.message });
+      toast.error(err?.response?.data?.error || 'Erro ao salvar oferta');
     }
   };
 
@@ -1179,7 +1226,7 @@ export default function AdminPromotionsAndCombos() {
                       {filteredProducts.map((product) => (
                         <div
                           key={product.id}
-                          className="flex items-center justify-between p-2 hover:bg-element-white rounded"
+                          className="flex items-center justify-between p-2 rounded hover:bg-white/10 active:bg-white/15"
                         >
                           <div className="flex items-center gap-2">
                             <Checkbox
@@ -1338,7 +1385,7 @@ export default function AdminPromotionsAndCombos() {
                     {filteredProducts.map((product) => (
                       <div
                         key={product.id}
-                        className="flex items-center justify-between p-2 hover:bg-element-white rounded"
+                        className="flex items-center justify-between p-2 rounded hover:bg-white/10 active:bg-white/15"
                       >
                         <div className="flex items-center gap-2">
                           <Checkbox
@@ -1477,7 +1524,7 @@ export default function AdminPromotionsAndCombos() {
                     {filteredProducts.map((product) => (
                       <div
                         key={product.id}
-                        className="flex items-center justify-between p-2 hover:bg-element-white rounded"
+                        className="flex items-center justify-between p-2 rounded hover:bg-white/10 active:bg-white/15"
                       >
                         <div className="flex items-center gap-2">
                           <Checkbox

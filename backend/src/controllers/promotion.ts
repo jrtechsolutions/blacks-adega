@@ -23,6 +23,7 @@ export const promotionController = {
   create: async (req: Request, res: Response) => {
     try {
       const { name, description, price, originalPrice, productIds, image } = req.body;
+      console.log('[Promoção] POST /promotions - recebido', { name, price });
       const promotion = await prisma.promotion.create({
         data: {
           name,
@@ -42,9 +43,10 @@ export const promotionController = {
           }
         }
       });
+      console.log('[Promoção] Promoção criada com sucesso', { id: promotion.id, name: promotion.name });
       res.json(promotion);
     } catch (error) {
-      console.error('Erro ao criar promoção:', error);
+      console.error('[Promoção] Erro ao criar promoção:', error);
       res.status(500).json({ error: 'Erro ao criar promoção' });
     }
   },

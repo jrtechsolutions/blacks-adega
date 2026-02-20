@@ -14,9 +14,16 @@ export const getById = async (req: Request, res: Response) => {
 };
 
 export const create = async (req: Request, res: Response) => {
-  const data = req.body;
-  const offer = await OfferService.create(data);
-  res.status(201).json(offer);
+  try {
+    const data = req.body;
+    console.log('[Oferta] POST /offers - recebido', { name: data.name, price: data.price });
+    const offer = await OfferService.create(data);
+    console.log('[Oferta] Oferta criada com sucesso', { id: offer.id, name: offer.name });
+    res.status(201).json(offer);
+  } catch (error) {
+    console.error('[Oferta] Erro ao criar oferta:', error);
+    res.status(500).json({ error: 'Erro ao criar oferta' });
+  }
 };
 
 export const update = async (req: Request, res: Response) => {

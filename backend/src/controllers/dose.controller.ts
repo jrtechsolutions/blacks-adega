@@ -6,6 +6,7 @@ export const doseController = {
   async create(req: Request, res: Response) {
     try {
       const { name, description, price, items, categoryId } = req.body;
+      console.log('[Dose] POST /doses - recebido', { name, price, categoryId });
       let image = '';
 
       if (req.file) {
@@ -41,10 +42,10 @@ export const doseController = {
         }
       });
 
-      console.log('Dose criada:', JSON.stringify(dose, null, 2));
+      console.log('[Dose] Dose criada com sucesso', { id: dose.id, name: dose.name });
       return res.json(dose);
     } catch (error) {
-      console.error('Erro ao criar dose:', error);
+      console.error('[Dose] Erro ao criar dose:', error);
       return res.status(500).json({ error: 'Erro ao criar dose' });
     }
   },
