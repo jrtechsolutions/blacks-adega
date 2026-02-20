@@ -27,6 +27,7 @@ import { toast as sonnerToast } from 'sonner';
 import { useForm } from "react-hook-form";
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '@/lib/axios';
+import { requestWithRetry } from '@/lib/requestWithRetry';
 
 interface Category {
   id: string;
@@ -156,40 +157,41 @@ const AdminProductRegistration = () => {
       return;
     }
 
-    console.log('[Produto] Iniciando cadastro', { name: data.name, categoryId: data.category, price, costPrice, stock: data.stock });
+    const isEdit = !!id;
+    const payload = {
+      name: data.name,
+      categoryId: data.category,
+      price,
+      costPrice,
+      margin,
+      stock: data.stock,
+      description: data.description || '',
+      isFractioned: data.isFractioned,
+      unitVolume,
+      totalVolume
+    };
+    console.log(isEdit ? '[Produto] Iniciando edição' : '[Produto] Iniciando cadastro', { name: data.name, categoryId: data.category, price, costPrice, stock: data.stock });
     sonnerToast.loading('Salvando...', { id: 'product-save' });
     try {
-      const token = JSON.parse(localStorage.getItem('auth-storage') || '{}')?.state?.token;
-      await api.post('/admin/products', {
-        name: data.name,
-        categoryId: data.category,
-        price,
-        costPrice,
-        margin,
-        stock: data.stock,
-        description: data.description || '',
-        isFractioned: data.isFractioned,
-        unitVolume,
-        totalVolume
-      }, {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+      if (isEdit) {
+        await requestWithRetry(api, 'put', `/admin/products/${id}`, payload);
+      } else {
+        await requestWithRetry(api, 'post', '/admin/products', payload);
+      }
       sonnerToast.dismiss('product-save');
-      console.log('[Produto] Cadastro concluído com sucesso', { name: data.name });
+      console.log('[Produto] Salvo com sucesso', { name: data.name });
       toast({
-        title: "Produto cadastrado com sucesso!",
-        description: `${data.name} foi adicionado ao estoque.`,
+        title: isEdit ? "Produto atualizado com sucesso!" : "Produto cadastrado com sucesso!",
+        description: isEdit ? `${data.name} foi atualizado.` : `${data.name} foi adicionado ao estoque.`,
       });
       setTimeout(() => {
         navigate('/admin-estoque');
       }, 2000);
     } catch (error: any) {
       sonnerToast.dismiss('product-save');
-      console.log('[Produto] Erro ao cadastrar', { name: data.name, status: error?.response?.status, message: error?.response?.data?.message });
+      console.log('[Produto] Erro ao salvar', { name: data.name, status: error?.response?.status, message: error?.response?.data?.message });
       toast({
-        title: "Erro ao cadastrar produto",
+        title: isEdit ? "Erro ao atualizar produto" : "Erro ao cadastrar produto",
         description: error?.response?.data?.message || 'Tente novamente.',
         variant: 'destructive',
       });

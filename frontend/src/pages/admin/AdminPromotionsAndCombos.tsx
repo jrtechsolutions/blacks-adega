@@ -372,14 +372,19 @@ export default function AdminPromotionsAndCombos() {
       active: String(editingCombo.active),
       categoryId: comboCategoryId,
     };
-    console.log('Payload enviado (edição):', comboData);
+    console.log('[Combo] Iniciando edição', { id: editingCombo.id, name: comboData.name });
+    toast.loading('Salvando...', { id: CADASTRO_TOAST_ID });
     try {
-      await api.put(`/admin/combos/${editingCombo.id}`, comboData);
+      await requestWithRetry('put', `/admin/combos/${editingCombo.id}`, comboData);
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Combo] Edição concluída com sucesso', { name: comboData.name });
       toast.success('Combo atualizado com sucesso');
       fetchData();
       resetForm();
-    } catch (error) {
-      toast.error('Erro ao atualizar combo');
+    } catch (error: any) {
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Combo] Erro ao atualizar', { name: comboData.name, status: error?.response?.status });
+      toast.error(error?.response?.data?.error || 'Erro ao atualizar combo');
     } finally {
       setIsSubmitting(false);
     }
@@ -403,14 +408,19 @@ export default function AdminPromotionsAndCombos() {
       productIds: JSON.stringify(selectedProducts),
       active: String(editingPromotion.active)
     };
-    console.log('Payload enviado (edição):', promoData);
+    console.log('[Promoção] Iniciando edição', { id: editingPromotion.id, name: promoData.name });
+    toast.loading('Salvando...', { id: CADASTRO_TOAST_ID });
     try {
-      await api.put(`/admin/promotions/${editingPromotion.id}`, promoData);
+      await requestWithRetry('put', `/admin/promotions/${editingPromotion.id}`, promoData);
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Promoção] Edição concluída com sucesso', { name: promoData.name });
       toast.success('Promoção atualizada com sucesso');
       fetchData();
       resetForm();
-    } catch (error) {
-      toast.error('Erro ao atualizar promoção');
+    } catch (error: any) {
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Promoção] Erro ao atualizar', { name: promoData.name, status: error?.response?.status });
+      toast.error(error?.response?.data?.error || 'Erro ao atualizar promoção');
     } finally {
       setIsSubmitting(false);
     }
@@ -450,15 +460,21 @@ export default function AdminPromotionsAndCombos() {
     formData.set('items', JSON.stringify(doseItems));
     formData.set('active', String(editingDose.active));
     formData.set('categoryId', doseCategoryId || '');
+    console.log('[Dose] Iniciando edição', { id: editingDose.id, name: formData.get('name') });
+    toast.loading('Salvando...', { id: CADASTRO_TOAST_ID });
     try {
-      await api.put(`/admin/doses/${editingDose.id}`, formData, {
+      await requestWithRetry('put', `/admin/doses/${editingDose.id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Dose] Edição concluída com sucesso', { name: formData.get('name') });
       toast.success('Dose atualizada com sucesso');
       fetchData();
       resetForm();
-    } catch (error) {
-      toast.error('Erro ao atualizar dose');
+    } catch (error: any) {
+      toast.dismiss(CADASTRO_TOAST_ID);
+      console.log('[Dose] Erro ao atualizar', { name: formData.get('name'), status: error?.response?.status });
+      toast.error(error?.response?.data?.error || 'Erro ao atualizar dose');
     } finally {
       setIsSubmitting(false);
     }

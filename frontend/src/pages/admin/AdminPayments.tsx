@@ -39,7 +39,9 @@ import { Switch } from '@/components/ui/switch';
 import { CreditCard, Plus, Edit, Trash2, Check, X } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 import api from '@/lib/axios';
+import { requestWithRetry } from '@/lib/requestWithRetry';
 
 const AdminPayments = () => {
   const [paymentMethods, setPaymentMethods] = useState([]);
@@ -55,18 +57,29 @@ const AdminPayments = () => {
   }, []);
 
   const handleAddMethod = async () => {
-    if (!newMethod.name) {
+    if (!newMethod.name?.trim()) {
       toast({ title: 'Campo obrigatório', description: 'Informe o nome do método.', variant: 'destructive' });
       return;
     }
     setLoading(true);
+    const name = newMethod.name.trim();
+    console.log('[Pagamento] Iniciando cadastro', { name, active: newMethod.active });
+    sonnerToast.loading('Salvando...', { id: 'payment-method-save' });
     try {
-      await api.post('/admin/payment-methods', newMethod);
+      await requestWithRetry(api, 'post', '/admin/payment-methods', { name, active: newMethod.active });
+      sonnerToast.dismiss('payment-method-save');
+      console.log('[Pagamento] Método cadastrado com sucesso', { name });
       fetchMethods();
       setNewMethod({ name: '', active: true });
-      toast({ title: 'Meio de pagamento adicionado', description: `${newMethod.name} foi adicionado com sucesso.` });
-    } catch (err) {
-      toast({ title: 'Erro', description: err.response?.data?.error || 'Erro ao adicionar método.', variant: 'destructive' });
+      toast({ title: 'Meio de pagamento adicionado', description: `${name} foi adicionado com sucesso.` });
+    } catch (err: any) {
+      sonnerToast.dismiss('payment-method-save');
+      console.log('[Pagamento] Erro ao cadastrar', { name, status: err?.response?.status, error: err?.response?.data?.error });
+      toast({
+        title: 'Erro',
+        description: err?.response?.data?.error || 'Erro ao adicionar método. Tente novamente.',
+        variant: 'destructive'
+      });
     }
     setLoading(false);
   };

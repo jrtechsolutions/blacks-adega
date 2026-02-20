@@ -53,6 +53,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { toast as sonnerToast } from 'sonner';
 import api from '@/lib/axios';
+import { requestWithRetry } from '@/lib/requestWithRetry';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -237,15 +238,15 @@ const AdminStock = () => {
   // Update stock handler
   const handleStockUpdate = async (productId: string, newStock: number) => {
     try {
-      await api.put(`/admin/products/${productId}/stock`, { stock: newStock });
+      await requestWithRetry(api, 'put', `/admin/products/${productId}/stock`, { stock: newStock });
       setProducts(products.map(p => p.id === productId ? { ...p, stock: newStock } : p));
       toast({ title: 'Estoque atualizado com sucesso!' });
       setIsUpdateDialogOpen(false);
     } catch (error: any) {
-      toast({ 
-        title: 'Erro ao atualizar estoque.', 
+      toast({
+        title: 'Erro ao atualizar estoque.',
         description: error.response?.data?.error || 'Tente novamente mais tarde.',
-        variant: 'destructive' 
+        variant: 'destructive'
       });
     }
   };
@@ -289,30 +290,30 @@ const AdminStock = () => {
 
   // Função para salvar as alterações
   const handleEditSave = async () => {
+    const payload = {
+      name: editForm.name,
+      categoryId: editForm.category,
+      price: parseFloat(editForm.price),
+      costPrice: parseFloat(editForm.costPrice),
+      stock: parseInt(editForm.stock),
+      description: editForm.description,
+      isFractioned: editForm.isFractioned,
+      unitVolume: editForm.isFractioned ? Number(editForm.unitVolume) : null,
+      totalVolume: editForm.isFractioned && editForm.stock && editForm.unitVolume
+        ? Number(editForm.stock) * Number(editForm.unitVolume)
+        : null,
+      active: editForm.active,
+    };
     try {
-      await api.put(`/admin/products/${editingProduct?.id}`, {
-        name: editForm.name,
-        categoryId: editForm.category,
-        price: parseFloat(editForm.price),
-        costPrice: parseFloat(editForm.costPrice),
-        stock: parseInt(editForm.stock),
-        description: editForm.description,
-        isFractioned: editForm.isFractioned,
-        unitVolume: editForm.isFractioned ? Number(editForm.unitVolume) : null,
-        totalVolume: editForm.isFractioned && editForm.stock && editForm.unitVolume
-          ? Number(editForm.stock) * Number(editForm.unitVolume)
-          : null,
-        active: editForm.active,
-      });
-      // Atualizar a lista de produtos
-      const updatedProducts = products.map(p => 
-        p.id === editingProduct?.id 
-          ? { 
-              ...p, 
+      await requestWithRetry(api, 'put', `/admin/products/${editingProduct?.id}`, payload);
+      const updatedProducts = products.map(p =>
+        p.id === editingProduct?.id
+          ? {
+              ...p,
               name: editForm.name,
-              category: { 
-                id: editForm.category, 
-                name: categories.find(c => c.id === editForm.category)?.name || '' 
+              category: {
+                id: editForm.category,
+                name: categories.find(c => c.id === editForm.category)?.name || ''
               },
               price: parseFloat(editForm.price),
               stock: parseInt(editForm.stock),
@@ -323,10 +324,10 @@ const AdminStock = () => {
       toast({ title: 'Produto atualizado com sucesso!' });
       setIsEditDialogOpen(false);
     } catch (error: any) {
-      toast({ 
-        title: 'Erro ao atualizar produto.', 
+      toast({
+        title: 'Erro ao atualizar produto.',
         description: error.response?.data?.error || 'Tente novamente mais tarde.',
-        variant: 'destructive' 
+        variant: 'destructive'
       });
     }
   };
@@ -347,7 +348,7 @@ const AdminStock = () => {
         active,
       };
 
-      await api.put(`/admin/products/${productId}`, payload);
+      await requestWithRetry(api, 'put', `/admin/products/${productId}`, payload);
       setProducts(products.map(p => p.id === productId ? { ...p, active } : p));
       toast({ title: `Produto ${active ? 'ativado' : 'inativado'} com sucesso!` });
     } catch (error: any) {
