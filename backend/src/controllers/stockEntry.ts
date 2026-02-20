@@ -7,12 +7,14 @@ export const stockEntryController = {
   create: async (req: Request, res: Response) => {
     try {
       const { productId, quantity, unitCost, supplierId, notes } = req.body;
+      console.log('[Estoque] POST /stock-entries - recebido', { productId, quantity, unitCost, supplierId: supplierId || null });
       if (!productId || !quantity || !unitCost) {
+        console.log('[Estoque] POST /stock-entries - validação falhou: campos obrigatórios faltando');
         return res.status(400).json({ error: 'Campos obrigatórios: produto, quantidade, custo unitário.' });
       }
 
       const totalCost = Number(quantity) * Number(unitCost);
-      
+
       // Buscar produto atual para calcular o custo médio ponderado
       const produto = await prisma.product.findUnique({ 
         where: { id: productId },
@@ -25,6 +27,7 @@ export const stockEntryController = {
       });
 
       if (!produto) {
+        console.log('[Estoque] POST /stock-entries - produto não encontrado', { productId });
         return res.status(404).json({ error: 'Produto não encontrado' });
       }
 
@@ -90,6 +93,13 @@ export const stockEntryController = {
       // Atualizar status de estoque
       await updateProductStockStatusWithValues(productId, prisma, updatedProduct.stock, updatedProduct.isFractioned, updatedProduct.totalVolume);
 
+      console.log('[Estoque] POST /stock-entries - entrada criada com sucesso', {
+        entryId: entry.id,
+        productId,
+        quantity: quantidadeNova,
+        estoqueAnterior: estoqueAtual,
+        estoqueNovo: estoqueAtual + quantidadeNova,
+      });
       res.status(201).json({
         ...entry,
         novoCustoMedio: novoCustoMedio.toFixed(2),
@@ -97,7 +107,7 @@ export const stockEntryController = {
         estoqueNovo: estoqueAtual + quantidadeNova
       });
     } catch (error) {
-      console.error('Erro ao registrar entrada de estoque:', error);
+      console.error('[Estoque] Erro ao registrar entrada de estoque:', error);
       res.status(500).json({ error: 'Erro ao registrar entrada de estoque' });
     }
   },

@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 const api = axios.create({
   baseURL: `${import.meta.env.VITE_API_URL}/api`,
+  timeout: 60000, // 60s - evita falha na primeira requisição quando o backend está em cold start (ex: Render)
 });
 
 api.interceptors.request.use((config) => {

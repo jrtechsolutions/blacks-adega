@@ -23,6 +23,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useToast } from "@/components/ui/use-toast";
+import { toast as sonnerToast } from 'sonner';
 import { useForm } from "react-hook-form";
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '@/lib/axios';
@@ -155,6 +156,8 @@ const AdminProductRegistration = () => {
       return;
     }
 
+    console.log('[Produto] Iniciando cadastro', { name: data.name, categoryId: data.category, price, costPrice, stock: data.stock });
+    sonnerToast.loading('Salvando...', { id: 'product-save' });
     try {
       const token = JSON.parse(localStorage.getItem('auth-storage') || '{}')?.state?.token;
       await api.post('/admin/products', {
@@ -173,6 +176,8 @@ const AdminProductRegistration = () => {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
+      sonnerToast.dismiss('product-save');
+      console.log('[Produto] Cadastro concluído com sucesso', { name: data.name });
       toast({
         title: "Produto cadastrado com sucesso!",
         description: `${data.name} foi adicionado ao estoque.`,
@@ -181,6 +186,8 @@ const AdminProductRegistration = () => {
         navigate('/admin-estoque');
       }, 2000);
     } catch (error: any) {
+      sonnerToast.dismiss('product-save');
+      console.log('[Produto] Erro ao cadastrar', { name: data.name, status: error?.response?.status, message: error?.response?.data?.message });
       toast({
         title: "Erro ao cadastrar produto",
         description: error?.response?.data?.message || 'Tente novamente.',

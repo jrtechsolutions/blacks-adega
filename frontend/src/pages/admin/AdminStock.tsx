@@ -51,6 +51,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from "@/components/ui/use-toast";
+import { toast as sonnerToast } from 'sonner';
 import api from '@/lib/axios';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -395,12 +396,19 @@ const AdminStock = () => {
   const handleStockEntrySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoadingStockEntry(true);
-    try {
-      await api.post('/admin/stock-entries', {
-        ...stockEntryForm,
-        quantity: parseInt(stockEntryForm.quantity, 10),
-        unitCost: parseFloat(stockEntryForm.unitCost),
-      });
+    const payload = {
+      ...stockEntryForm,
+      quantity: parseInt(stockEntryForm.quantity, 10),
+      unitCost: parseFloat(stockEntryForm.unitCost),
+    };
+    const productId = payload.productId;
+    const quantity = payload.quantity;
+    const unitCost = payload.unitCost;
+    console.log('[Estoque] Iniciando registro de entrada', { productId, quantity, unitCost, notes: payload.notes });
+    sonnerToast.loading('Salvando...', { id: 'stock-entry-save' });
+    const onSuccess = () => {
+      sonnerToast.dismiss('stock-entry-save');
+      console.log('[Estoque] Entrada registrada com sucesso', { productId });
       toast({ title: 'Entrada de estoque registrada com sucesso!' });
       setIsStockEntryDialogOpen(false);
       setStockEntryForm({ productId: '', quantity: '', unitCost: '', notes: '' });
@@ -413,11 +421,31 @@ const AdminStock = () => {
         }));
         setProducts(mapped);
       });
+    };
+    try {
+      await api.post('/admin/stock-entries', payload);
+      onSuccess();
     } catch (err: any) {
-      toast({ 
-        title: 'Erro ao registrar entrada de estoque.', 
-        description: err.response?.data?.error || 'Tente novamente.',
-        variant: 'destructive' 
+      const isNetworkError = !err.response && (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED');
+      if (isNetworkError) {
+        console.log('[Estoque] Falha de rede, tentando novamente em 2s...', { productId, code: err.code });
+        await new Promise(r => setTimeout(r, 2000));
+        try {
+          await api.post('/admin/stock-entries', payload);
+          onSuccess();
+          return;
+        } catch (retryErr: any) {
+          console.log('[Estoque] Erro no retry', { productId, message: retryErr?.message });
+          err = retryErr;
+        }
+      } else {
+        console.log('[Estoque] Erro ao registrar entrada', { productId, status: err.response?.status, error: err.response?.data?.error });
+      }
+      sonnerToast.dismiss('stock-entry-save');
+      toast({
+        title: 'Erro ao registrar entrada de estoque.',
+        description: err.response?.data?.error || (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED' ? 'Falha na conexão. Tente novamente.' : 'Tente novamente.'),
+        variant: 'destructive'
       });
     } finally {
       setLoadingStockEntry(false);
