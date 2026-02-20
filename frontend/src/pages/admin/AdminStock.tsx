@@ -177,6 +177,14 @@ const AdminStock = () => {
     api.get('/admin/stock-movements').then(res => setStockMovements(res.data));
   }, []);
 
+  // Warm-up do servidor ao abrir o modal (evita cold start na hora do POST)
+  useEffect(() => {
+    if (isStockEntryDialogOpen) {
+      console.log('[Estoque] Modal aberto - enviando warm-up para o servidor');
+      api.get('/admin/stock-entries', { timeout: 25000 }).catch(() => {});
+    }
+  }, [isStockEntryDialogOpen]);
+
   // Function to handle sorting
   const requestSort = (key: keyof Product) => {
     let direction: 'asc' | 'desc' = 'asc';
@@ -422,22 +430,37 @@ const AdminStock = () => {
         setProducts(mapped);
       });
     };
+
+    const doPost = () => api.post('/admin/stock-entries', payload);
+
     try {
-      await api.post('/admin/stock-entries', payload);
+      // Warm-up: garante que o servidor (ex: Render) já acordou antes do POST
+      try {
+        console.log('[Estoque] Aguardando servidor (warm-up)...');
+        await api.get('/admin/stock-entries', { timeout: 45000 });
+      } catch (_) {
+        // ignora falha do warm-up, segue para o POST
+      }
+      await doPost();
       onSuccess();
     } catch (err: any) {
       const isNetworkError = !err.response && (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED');
       if (isNetworkError) {
-        console.log('[Estoque] Falha de rede, tentando novamente em 2s...', { productId, code: err.code });
-        await new Promise(r => setTimeout(r, 2000));
-        try {
-          await api.post('/admin/stock-entries', payload);
-          onSuccess();
-          return;
-        } catch (retryErr: any) {
-          console.log('[Estoque] Erro no retry', { productId, message: retryErr?.message });
-          err = retryErr;
+        const maxRetries = 2;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          console.log(`[Estoque] Falha de rede, retry ${attempt}/${maxRetries} em 5s...`, { productId, code: err.code });
+          sonnerToast.loading(`Salvando... (tentativa ${attempt + 1})`, { id: 'stock-entry-save' });
+          await new Promise(r => setTimeout(r, 5000));
+          try {
+            await doPost();
+            onSuccess();
+            return;
+          } catch (retryErr: any) {
+            err = retryErr;
+            if (retryErr.response) break; // erro do servidor, não é rede
+          }
         }
+        console.log('[Estoque] Erro após retries', { productId, message: err?.message });
       } else {
         console.log('[Estoque] Erro ao registrar entrada', { productId, status: err.response?.status, error: err.response?.data?.error });
       }

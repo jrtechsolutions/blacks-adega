@@ -115,6 +115,7 @@ export const stockEntryController = {
   // Listar entradas de estoque
   list: async (req: Request, res: Response) => {
     try {
+      console.log('[Estoque] GET /stock-entries - listagem (pode ser warm-up do frontend)');
       const entries = await prisma.stockEntry.findMany({
         include: { product: true, supplier: true },
         orderBy: { createdAt: 'desc' }
